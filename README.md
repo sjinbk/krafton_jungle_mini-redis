@@ -1,1 +1,3 @@
 # krafton_jungle_mini-redis
+
+test

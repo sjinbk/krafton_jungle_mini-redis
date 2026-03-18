@@ -57,25 +57,24 @@
   - `docs/spec/PROJECT_SPEC.md`
   - `docs/architecture/SYSTEM_DESIGN.md`
 
-### D-007 뉴스 캐싱 데모는 DB 적재 dummy headline 기반 cache-aside로 고정한다
+### D-007 캐싱 데이터는 외부 API가 아니라 DB 적재 더미 데이터를 사용한다
 - 내용:
-  - `GET /demo/headlines-cache?topic={ai|gaming|economy}` 형태를 사용한다
-  - origin 데이터는 외부 API가 아니라 DB에 사전 적재한 dummy headline document를 조회한다
-  - 내부 캐시 키는 `news:{topic}:kr`, TTL은 `15`초로 고정한다
+  - 캐싱 시나리오의 origin 데이터는 외부 API에서 가져오지 않는다
+  - 데모와 테스트에 사용할 dummy document는 DB에 사전 적재한다
 - 이유:
-  - 외부 네트워크 의존 없이 캐시 hit / TTL 만료 / origin 재조회 흐름을 짧고 명확하게 보여주기 쉽다
-  - 데모와 테스트를 재현 가능하게 유지할 수 있다
+  - 외부 네트워크 의존 없이 캐시 흐름을 재현 가능하게 유지할 수 있다
+  - 데모와 테스트를 안정적으로 반복할 수 있다
 - 원본 문서:
-  - `docs/spec/API_CONTRACT.md`
   - `docs/spec/PROJECT_SPEC.md`
+  - `docs/spec/API_CONTRACT.md`
 
-### D-008 뉴스 캐싱 데모용 origin DB는 MongoDB로 고정한다
+### D-008 캐싱 시나리오의 origin DB는 MongoDB로 고정한다
 - 내용:
-  - headline dummy data는 MongoDB collection에 저장한다
-  - 조회 기준은 `topic`, `locale`이며 문서형 데이터를 그대로 다룬다
+  - 더미 데이터는 MongoDB `dummy_items` collection에 저장한다
+  - 서비스 계층은 MongoDB 조회 결과를 읽어 캐시 payload로 변환한다
 - 이유:
-  - 기사 목록 형태 데이터를 다루기 쉽고 seed fixture 관리가 단순하다
-  - cache-aside 데모에서 origin read model을 명확하게 분리할 수 있다
+  - 문서형 데이터 구조에 맞고 seed fixture 관리가 단순하다
+  - cache-aside 데모에서 origin 저장소 역할을 분리하기 쉽다
 - 원본 문서:
   - `docs/spec/PROJECT_SPEC.md`
   - `docs/spec/API_CONTRACT.md`
@@ -91,6 +90,40 @@
 - 원본 문서:
   - `docs/spec/PROJECT_SPEC.md`
   - `docs/architecture/SYSTEM_DESIGN.md`
+
+### D-010 v1 동시성 보장은 key 단위 직렬화로 제한한다
+- 내용:
+  - 같은 `key`에 대한 요청은 서비스 계층에서 순차 처리한다
+  - 다른 `key`에 대한 요청은 병렬 처리를 허용한다
+  - same-key 요청의 일관성만 보장하고, origin 조회 최적화는 v1 계약에 포함하지 않는다
+- 이유:
+  - same-key 경쟁 상태를 단순한 기준으로 통제할 수 있다
+  - 전역 락 없이도 핵심 일관성 요구를 충족할 수 있다
+  - 중복 origin 조회 최적화까지 묶으면 구현과 문서 복잡도가 불필요하게 커진다
+- 원본 문서:
+  - `docs/architecture/SYSTEM_DESIGN.md`
+  - `docs/process/TEST_STRATEGY.md`
+
+### D-011 v1 무효화 전략은 명시적 삭제와 TTL 기반 만료로 제한한다
+- 내용:
+  - 사용자 무효화 수단은 `DELETE`, `EXPIRE`, TTL 만료, 같은 key overwrite로 한정한다
+  - 별도 `deprecated` 상태나 soft delete는 도입하지 않는다
+- 이유:
+  - v1 요구사항을 충족하는 최소 수단만 남겨 설명과 구현 복잡도를 낮춘다
+  - 공개 API 계약과 테스트 기준을 단순하게 유지할 수 있다
+- 원본 문서:
+  - `docs/spec/PROJECT_SPEC.md`
+  - `docs/spec/API_CONTRACT.md`
+
+### D-012 optional persistence는 후보 검토만 하고 v1 구현 범위에서는 제외한다
+- 내용:
+  - 후보는 `append-only log`, `snapshot`, `hybrid`다
+  - v1에서는 persistence를 필수 구현에 넣지 않고 검토 결과만 남긴다
+- 이유:
+  - 하루 과제 범위에서는 핵심 기능, 테스트, README 데모 완성도가 우선이다
+  - 서버 다운 대응은 중요하지만 optional 항목으로 남겨도 과제 목표를 해치지 않는다
+- 원본 문서:
+  - `docs/spec/PROJECT_SPEC.md`
 
 ## Deferred
 ### D-101 영속성 방식

@@ -9,6 +9,7 @@
 - 작업 주제나 목적이 바뀌면 새 스레드와 새 브랜치를 연다
 - 같은 사람이더라도 다른 작업이면 브랜치를 재사용하지 않는다
 - 공통 계약 변경은 코드보다 문서를 먼저 수정한다
+- README 기준 사양이 갱신되면 관련 원본 문서도 같은 턴에 함께 맞춘다
 
 ## 작업 영역
 - `store`
@@ -60,7 +61,7 @@
 예시:
 - `feat(store): add map based set and get`
 - `fix(ttl): delete expired key on read`
-- `docs(repo): define thread branch convention`
+- `docs(repo): sync docs with readme`
 
 ## 태그 분류 기준
 - `feat`
@@ -111,7 +112,7 @@
 - 문서 정리 스레드에서 `docs/repo-collaboration-convention-cy` 생성
 - 기능 구현 커밋 `feat(api): add kv endpoints`
 - 버그 수정 커밋 `fix(ttl): remove expired key on read`
-- 문서 커밋 `docs(repo): define thread branch convention`
+- 문서 커밋 `docs(repo): sync docs with readme`
 
 ## 실패 사례
 - 한 스레드에서 브랜치 변경

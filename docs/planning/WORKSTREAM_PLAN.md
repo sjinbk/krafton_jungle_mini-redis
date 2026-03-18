@@ -8,7 +8,7 @@
 3. `WS-03` TTL 구현
 4. `WS-04` HTTP API 구현
 5. `WS-05` 테스트와 벤치마크
-6. `WS-06` README 반영
+6. `WS-06` README 및 데모 정리
 
 ## Workstreams
 ### `WS-01` 계약 고정
@@ -45,7 +45,7 @@
   - `docs/decisions/DECISION_LOG.md`
   - `docs/process/TEST_STRATEGY.md`
 - 산출물:
-  - expiresAt 처리
+  - `expiresAt` 처리
   - lazy expiration
   - 만료 관련 테스트
 - 완료 기준:
@@ -82,19 +82,20 @@
 - 완료 기준:
   - 수용 기준에 대응되는 테스트가 존재한다
 
-### `WS-06` README 반영
+### `WS-06` README 및 데모 정리
 - 권장 브랜치 주제:
   - `docs/repo-readme-demo-<initials>`
 - 입력 문서:
   - `README.md`
   - 테스트 결과
   - 성능 비교 결과
+  - `docs/planning/UI_DEMO_PAGE_SPEC.md`
 - 산출물:
   - 실행 방법
   - API 예시
   - MongoDB 더미 데이터 기반 데모 설명
-  - 테스트 결과
-  - 성능 비교 결과
+  - 테스트 결과 요약
+  - 성능 비교 결과 정리
 - 완료 기준:
   - README만으로 프로젝트 소개와 데모 흐름 설명이 가능하다
 

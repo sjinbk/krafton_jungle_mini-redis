@@ -25,19 +25,16 @@ def invalid_iterations(
     return AppError(status_code=400, code="INVALID_ITERATIONS", message=message)
 
 
-def invalid_burst_count(
-    message: str = "count must be an integer between 1 and 50",
+def invalid_seat_limit(
+    message: str = "seatLimit must be an integer between 1 and 100",
 ) -> AppError:
-    return AppError(status_code=400, code="INVALID_BURST_COUNT", message=message)
+    return AppError(status_code=400, code="INVALID_SEAT_LIMIT", message=message)
 
 
-def invalid_scenario(
-    message: str = (
-        "scenario must be one of sameKeyKvGetBurst, "
-        "differentKeyKvGetBurst, demoCacheGetBurst"
-    ),
+def invalid_request_count(
+    message: str = "requestCount must be an integer between 1 and 200",
 ) -> AppError:
-    return AppError(status_code=400, code="INVALID_SCENARIO", message=message)
+    return AppError(status_code=400, code="INVALID_REQUEST_COUNT", message=message)
 
 
 def key_not_found(message: str = "Requested key does not exist") -> AppError:

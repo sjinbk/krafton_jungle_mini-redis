@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from src.common.errors import (
-    invalid_burst_count,
     invalid_iterations,
     invalid_key,
-    invalid_scenario,
+    invalid_request_count,
+    invalid_seat_limit,
     invalid_ttl,
 )
 
@@ -27,14 +27,18 @@ def validate_iterations(iterations: int) -> int:
     return iterations
 
 
-def validate_burst_count(count: int) -> int:
-    if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 50:
-        raise invalid_burst_count()
-    return count
+def validate_seat_limit(seat_limit: int) -> int:
+    if isinstance(seat_limit, bool) or not isinstance(seat_limit, int) or not 1 <= seat_limit <= 100:
+        raise invalid_seat_limit()
+    return seat_limit
 
 
-def validate_scenario(scenario: str, allowed: set[str]) -> str:
-    if not isinstance(scenario, str) or scenario not in allowed:
-        raise invalid_scenario()
-    return scenario
+def validate_request_count(request_count: int) -> int:
+    if (
+        isinstance(request_count, bool)
+        or not isinstance(request_count, int)
+        or not 1 <= request_count <= 200
+    ):
+        raise invalid_request_count()
+    return request_count
 

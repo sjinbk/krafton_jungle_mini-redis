@@ -26,10 +26,9 @@ class PerformanceCompareRequest(BaseModel):
     iterations: StrictInt = Field(default=20)
 
 
-class ConcurrencyBurstRequest(BaseModel):
+class SeatReservationDemoRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    scenario: StrictStr
-    count: StrictInt = Field(default=10)
-    key: StrictStr = Field(default="sample", min_length=1)
+    seatLimit: StrictInt = Field(default=50)
+    requestCount: StrictInt = Field(default=100)
 

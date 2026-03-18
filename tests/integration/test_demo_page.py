@@ -35,4 +35,6 @@ def test_demo_page_is_served_from_root() -> None:
     assert "기본 KV 기능" in response.text
     assert "더미 데이터 조회" in response.text
     assert "성능 비교 실행" in response.text
-    assert "동시성 확인 실행" in response.text
+    assert "좌석 예약 동시성 실행" in response.text
+    assert "/demo/concurrency/seat-reservation" in response.text
+    assert "sameKeyKvGetBurst" not in response.text

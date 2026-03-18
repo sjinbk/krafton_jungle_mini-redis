@@ -11,9 +11,9 @@ from pymongo import MongoClient
 
 from src.api.responses import build_error_response, build_success_response
 from src.api.schemas import (
-    ConcurrencyBurstRequest,
     ExpireRequest,
     PerformanceCompareRequest,
+    SeatReservationDemoRequest,
     SetValueRequest,
 )
 from src.common.config import Settings
@@ -24,6 +24,7 @@ from src.service.demo_cache_service import OriginRepository
 from src.service.kv_service import KeyValueService
 from src.service.mongo_origin import MongoOriginRepository
 from src.service.performance_benchmark_service import PerformanceBenchmarkService
+from src.service.seat_reservation_demo_service import SeatReservationDemoService
 from src.store.in_memory import InMemoryStore
 from src.ttl.policy import SystemClock
 
@@ -41,13 +42,10 @@ def _map_validation_error(exc: RequestValidationError) -> tuple[str, str]:
             return "INVALID_TTL", "ttlSeconds must be a positive integer greater than zero"
         if field == "iterations":
             return "INVALID_ITERATIONS", "iterations must be an integer between 1 and 100"
-        if field == "count":
-            return "INVALID_BURST_COUNT", "count must be an integer between 1 and 50"
-        if field == "scenario":
-            return (
-                "INVALID_SCENARIO",
-                "scenario must be one of sameKeyKvGetBurst, differentKeyKvGetBurst, demoCacheGetBurst",
-            )
+        if field == "seatLimit":
+            return "INVALID_SEAT_LIMIT", "seatLimit must be an integer between 1 and 100"
+        if field == "requestCount":
+            return "INVALID_REQUEST_COUNT", "requestCount must be an integer between 1 and 200"
         if field == "key":
             code = "INVALID_KEY"
             message = "Key must be a non-empty string"
@@ -94,6 +92,10 @@ def create_app(
         origin_repository=origin_repository,
         default_ttl_seconds=settings.default_cache_ttl_seconds,
     )
+    seat_reservation_demo_service = SeatReservationDemoService(
+        command_executor=command_executor,
+        clock=clock,
+    )
     performance_benchmark_service = None
     if include_performance_routes:
         performance_benchmark_service = PerformanceBenchmarkService(
@@ -119,6 +121,7 @@ def create_app(
     app.state.command_executor = command_executor
     app.state.kv_service = kv_service
     app.state.demo_cache_service = demo_cache_service
+    app.state.seat_reservation_demo_service = seat_reservation_demo_service
     app.state.performance_benchmark_service = performance_benchmark_service
 
     @app.get("/", include_in_schema=False)
@@ -200,15 +203,15 @@ def create_app(
             )
             return build_success_response(data)
 
-        @app.post("/demo/performance/concurrency-burst")
-        def run_concurrency_burst(
+        @app.post("/demo/concurrency/seat-reservation")
+        def run_seat_reservation_demo(
             request: Request,
-            payload: ConcurrencyBurstRequest,
+            payload: SeatReservationDemoRequest | None = None,
         ) -> dict[str, Any]:
-            data = request.app.state.performance_benchmark_service.run_concurrency_burst(
-                scenario=payload.scenario,
-                count=payload.count,
-                key=payload.key,
+            payload = payload or SeatReservationDemoRequest()
+            data = request.app.state.seat_reservation_demo_service.run_demo(
+                seat_limit=payload.seatLimit,
+                request_count=payload.requestCount,
             )
             return build_success_response(data)
 

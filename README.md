@@ -99,11 +99,122 @@
 - 같은 `key` 요청은 순차 처리하고, 다른 `key` 요청은 병렬 처리하는 동시성 기준을 설명한다.
 
 ## 실행 방법
-구현이 완료되면 아래 정보만 채운다.
-- 설치 방법
-- API 서버 실행 명령
-- 테스트 실행 명령
-- 벤치마크 실행 명령
+### 1. 의존성 설치
+```bash
+python -m pip install -r requirements.txt
+```
+
+### 2. MongoDB 실행 확인
+- 로컬 `mongod`가 `mongodb://127.0.0.1:27017`에서 실행 중이어야 한다.
+- 기본 DB 이름은 `mini_redis`, 컬렉션 이름은 `dummy_items`다.
+
+### 3. 더미 데이터 시드
+```bash
+python scripts/seed_mongo.py
+```
+
+### 4. API 서버 실행
+```bash
+python -m uvicorn main:app --host 127.0.0.1 --port 8000
+```
+
+### 5. 테스트 실행
+```bash
+python -m pytest -q
+```
+
+### 6. 벤치마크 실행
+```bash
+python benchmarks/compare_cache.py --key sample --iterations 20
+```
+
+## 현재 구현 구조
+```text
+src/
+  api/
+  common/
+  service/
+  store/
+  ttl/
+tests/
+  integration/
+  unit/
+benchmarks/
+scripts/
+```
+
+## API 요약
+| Method | Path | 설명 |
+|------|------|------|
+| `POST` | `/kv` | key/value 저장, optional `ttlSeconds` |
+| `GET` | `/kv/{key}` | 저장된 값 조회 |
+| `DELETE` | `/kv/{key}` | key 삭제 |
+| `POST` | `/kv/{key}/expire` | TTL 설정 |
+| `GET` | `/kv/{key}/ttl` | TTL 조회 |
+| `GET` | `/demo/data-cache?key=sample` | MongoDB origin -> cache-aside 데모 |
+
+## 데모 예시
+### KV 저장/조회
+```bash
+curl -X POST http://127.0.0.1:8000/kv ^
+  -H "Content-Type: application/json" ^
+  -d "{\"key\":\"hello\",\"value\":{\"message\":\"world\"}}"
+
+curl http://127.0.0.1:8000/kv/hello
+```
+
+### TTL 설정/조회
+```bash
+curl -X POST http://127.0.0.1:8000/kv/hello/expire ^
+  -H "Content-Type: application/json" ^
+  -d "{\"ttlSeconds\":5}"
+
+curl http://127.0.0.1:8000/kv/hello/ttl
+```
+
+### 캐시 데모
+```bash
+curl "http://127.0.0.1:8000/demo/data-cache?key=sample"
+curl "http://127.0.0.1:8000/demo/data-cache?key=sample"
+```
+- 첫 호출은 `source = origin`
+- TTL 안의 재호출은 `source = cache`
+- TTL 만료 후 재호출은 다시 `source = origin`
+
+## 테스트 결과
+- 단위 테스트
+  - store set/get/delete
+  - TTL 계산 및 lazy expiration
+  - KV service overwrite / TTL / invalid input
+  - demo cache service origin hit / cache hit / empty result
+- 기능 테스트
+  - `POST /kv -> GET /kv/{key} -> DELETE /kv/{key}`
+  - `POST /kv/{key}/expire -> GET /kv/{key}/ttl`
+  - `GET /demo/data-cache` origin/cache/expiry flow
+  - invalid request `400` 처리
+- 현재 로컬 결과
+  - `python -m pytest -q`
+  - `18 passed`
+
+## 성능 비교
+- 측정 일시: `2026-03-18`
+- 측정 조건:
+  - 로컬 MongoDB `mongod`
+  - `python benchmarks/compare_cache.py --key sample --iterations 20`
+  - 같은 요청 경로 `/demo/data-cache?key=sample`
+- 측정 결과:
+  - cold origin average: `3.738 ms`
+  - warm cache average: `2.396 ms`
+
+## Persistence 검토 결과
+- v1에서는 persistence를 구현하지 않았다.
+- 제외 이유:
+  - 하루 일정 안에서 핵심 KV 동작, TTL, MongoDB cache-aside 데모, 테스트, 설명 가능성을 우선했다.
+  - persistence를 붙이면 저장 경로와 복구 경로 설명 비용이 커져 MVP 학습 목표를 흐릴 수 있다.
+- 검토 후보:
+  - append-only log
+  - snapshot
+  - hybrid
 
 ## 상세 문서
 - [Project Spec](docs/spec/PROJECT_SPEC.md)

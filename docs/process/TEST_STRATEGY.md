@@ -10,6 +10,7 @@
   - 공개 API 기준 end-to-end 흐름
 - 성능 비교
   - 캐시 hit vs no-cache
+  - 동시 GET burst 비교
 
 ## 최소 통과선
 - 단위 테스트:
@@ -19,6 +20,7 @@
   - KV API와 더미 데이터 캐싱 흐름이 검증된다
 - 성능 비교:
   - 동일한 입력으로 DB origin path와 cache hit를 한 번 이상 비교한다
+  - same-key / different-key / demo cache GET burst를 한 번 이상 비교한다
 
 ## 테스트 데이터 원칙
 - 더미 데이터 캐싱 시나리오는 외부 API stub 대신 MongoDB dummy seed data 기준으로 검증한다.
@@ -80,3 +82,6 @@
 - DB origin path 1회 이상
 - 같은 입력 기준 warm cache path 1회 이상
 - 평균 시간 또는 총 시간 중 하나 이상 기록
+- 동시 GET burst는 `sameKeyKvGetBurst`, `differentKeyKvGetBurst`, `demoCacheGetBurst` 최소 1회씩 측정한다
+- 동시 GET burst는 `avg`, `p95`, `max`, `throughput`, `timeline` 중 최소 집계와 timeline을 함께 남긴다
+- 수치 테스트는 값 존재, 타입, 0 이상 여부만 검증하고 절대 우위는 고정하지 않는다

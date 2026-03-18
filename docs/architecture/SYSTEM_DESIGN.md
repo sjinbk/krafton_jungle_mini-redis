@@ -1,9 +1,9 @@
 # System Design
 
-이 문서는 시스템 구조, 계층 책임, 데이터 모델, 디렉터리 구조의 단일 원본이다. 구조적 판단은 이 문서를 기준으로 한다.
+이 문서는 시스템 구조, 계층 책임, 데이터 모델, 디렉터리 구조의 단일 원본이다. 구조적 판단은 README와 이 문서를 기준으로 한다.
 
 ## 기본 구조
-구현은 아래 3계층을 분리하는 방향으로 진행한다. 뉴스 캐싱 데모에서는 서비스 계층이 MongoDB origin 조회를 함께 오케스트레이션한다.
+구현은 아래 3계층을 분리하는 방향으로 진행한다. 더미 데이터 캐싱 시나리오에서는 서비스 계층이 MongoDB origin 조회를 함께 오케스트레이션한다.
 
 ```mermaid
 flowchart TD
@@ -30,8 +30,8 @@ flowchart TD
   - 값과 만료 메타데이터를 보관한다.
   - Mini Redis의 인메모리 캐시 저장소 역할만 맡는다.
 - `MongoDB Origin Adapter`
-  - 사전 적재한 dummy headline document를 조회한다.
-  - `topic`, `locale` 기준 필터를 수행한다.
+  - 사전 적재한 dummy document를 조회한다.
+  - 주어진 조회 조건에 맞는 문서를 읽는다.
   - 서비스 계층이 사용할 기사 목록 형태로 변환한다.
 
 ## 데이터 모델
@@ -45,14 +45,12 @@ Entry = {
   expiresAt | null
 }
 
-HeadlineDocument = {
+DummyDocument = {
   _id,
-  topic,
-  locale,
-  title,
-  source,
-  publishedAt,
-  url
+  key,
+  itemId,
+  value,
+  createdAt
 }
 ```
 
@@ -60,7 +58,8 @@ HeadlineDocument = {
 - `key`는 문자열
 - `value`는 직렬화 가능한 값
 - `expiresAt`이 없으면 만료 없음
-- MongoDB의 `HeadlineDocument`는 데모용 origin read model이며 Mini Redis cache entry와 별개다
+- MongoDB origin collection은 `dummy_items` 하나로 고정한다
+- MongoDB의 `DummyDocument`는 데모용 origin read model이며 Mini Redis cache entry와 별개다
 
 ## TTL 흐름
 - 기본 정책은 `lazy expiration`
@@ -70,21 +69,21 @@ HeadlineDocument = {
   - 외부에는 miss로 반환
 - 주기적 cleanup은 선택 과제
 
-## 뉴스 캐싱 요청 흐름
-1. 클라이언트가 `GET /demo/headlines-cache?topic=...`를 호출한다.
-2. API 계층이 `topic`을 검증하고 서비스 계층에 전달한다.
-3. 서비스 계층이 캐시 키 `news:{topic}:kr`를 계산한 뒤 인메모리 저장소에서 조회한다.
+## 더미 데이터 캐싱 요청 흐름
+1. 클라이언트가 더미 데이터 캐싱 데모 API를 호출한다.
+2. API 계층이 요청 값을 검증하고 서비스 계층에 전달한다.
+3. 서비스 계층이 캐시 키 `data:{key}`를 계산한 뒤 인메모리 저장소에서 조회한다.
 4. 캐시 hit면 남은 TTL과 함께 캐시 데이터를 반환한다.
-5. 캐시 miss면 MongoDB origin adapter가 headlines collection에서 dummy data를 조회한다.
+5. 캐시 miss면 MongoDB origin adapter가 `dummy_items` collection에서 같은 `key`의 더미 데이터를 조회한다.
 6. origin 결과가 있으면 저장소에 기본 TTL `15초`와 함께 저장한 뒤 `source = origin`으로 응답한다.
 7. origin 결과가 비어 있으면 빈 배열 응답만 반환하고 캐시는 쓰지 않는다.
 
 ## 동시성 방향
-- v1은 프로세스 내부 단일 저장소를 전제로 한다.
+- v1은 단일 프로세스와 프로세스 내부 단일 저장소를 전제로 한다.
 - 저장소를 직접 여러 곳에서 수정하지 않고, 서비스 계층을 유일한 진입 경로로 둔다.
-- MongoDB 조회는 여러 요청에서 동시에 일어날 수 있지만 캐시 갱신 규칙은 서비스 계층에서 일관되게 적용한다.
-- 명시적 동기화가 필요하면 가장 단순한 안전 장치를 택한다.
-- 복잡한 락 전략을 먼저 도입하지 않는다.
+- 동시성 제어 단위는 전역이 아니라 `key`다. 같은 `key`에 대한 요청은 서비스 계층에서 순차 처리한다.
+- 다른 `key`에 대한 요청은 서로 독립적으로 처리하며, 전역 직렬화는 도입하지 않는다.
+- same-key 요청의 일관성은 보장하지만, origin 조회 횟수 최소화는 v1 계약에 포함하지 않는다.
 
 ## 권장 디렉터리 구조
 기술 스택이 달라도 아래 구조에 최대한 대응되게 맞춘다.
@@ -141,7 +140,7 @@ docs/
 - `tests/integration/`
   - HTTP API 기준 기능 테스트
 - `benchmarks/`
-  - 캐시 hit / MongoDB no-cache 비교 코드
+  - 캐시 hit / no-cache 비교 코드
 
 ## 파일 배치 규칙
 - API 코드는 `src/api/` 밖으로 새지 않는다.
@@ -163,7 +162,7 @@ docs/
 - `api`
   - FastAPI 외부 인터페이스
   - 요청/응답 형식
-  - MongoDB 기반 캐싱 흐름
+  - MongoDB 기반 더미 데이터 캐싱 흐름
 - `test-docs`
   - 단위 테스트
   - 기능 테스트

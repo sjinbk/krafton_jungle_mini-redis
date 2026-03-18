@@ -20,8 +20,8 @@
   - `docs/spec/API_CONTRACT.md`
   - `docs/decisions/DECISION_LOG.md`
 - 산출물:
-  - FastAPI / MongoDB / dummy data 전제가 반영된 잠긴 API 계약
-  - 필요한 결정 로그 업데이트
+  - README와 동기화된 API 계약
+  - FastAPI / MongoDB / seeded dummy data 전제가 반영된 정책 문서
 - 완료 기준:
   - 공개 계약 관련 미해결 결정이 남아 있지 않다
 
@@ -63,7 +63,7 @@
   - FastAPI HTTP 엔드포인트
   - 요청/응답 형식
   - MongoDB origin 조회 협력 로직
-  - 뉴스 헤드라인 캐싱 데모 엔드포인트
+  - 더미 데이터 캐싱 시나리오
 - 완료 기준:
   - 기능 테스트를 붙일 수 있는 공개 API가 준비된다
 
@@ -92,7 +92,7 @@
 - 산출물:
   - 실행 방법
   - API 예시
-  - MongoDB 더미 데이터 데모 설명
+  - MongoDB 더미 데이터 기반 데모 설명
   - 테스트 결과
   - 성능 비교 결과
 - 완료 기준:
@@ -101,5 +101,6 @@
 ## 공통 규칙
 - 한 브랜치에서 한 workstream만 크게 수정한다
 - 공통 계약 변경은 코드보다 문서를 먼저 수정한다
+- README와 원본 문서 간 차이가 생기면 먼저 문서를 동기화한다
 - 고충돌 파일 변경은 별도 브랜치에서 짧게 끝낸다
 - 머지 전에는 관련 테스트 또는 최소 검증 근거를 남긴다

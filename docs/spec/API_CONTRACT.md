@@ -10,7 +10,7 @@
 | `DELETE` | `/kv/{key}` | key 삭제 | path `key` | `200`, `404` |
 | `POST` | `/kv/{key}/expire` | TTL 설정 | path `key`, body `ttlSeconds` | `200`, `400`, `404` |
 | `GET` | `/kv/{key}/ttl` | TTL 조회 | path `key` | `200`, `404` |
-| `GET` | `/demo/headlines-cache` | MongoDB 기반 뉴스 헤드라인 캐싱 데모 | query `topic` | `200`, `400`, `500` |
+| `GET` | `/demo/data-cache` | DB 기반 더미 데이터 캐싱 시나리오 | query `key` | `200`, `400`, `500` |
 
 ## 구현 우선순위
 - 필수 구현
@@ -18,9 +18,9 @@
   - `GET /kv/{key}`
   - `DELETE /kv/{key}`
   - `POST /kv/{key}/expire`
-  - `GET /demo/headlines-cache`
-- 여유가 있으면 추가
   - `GET /kv/{key}/ttl`
+- 함께 검증할 데모 API
+  - `GET /demo/data-cache`
 
 ## 명령 의미
 ### `SET`
@@ -46,6 +46,7 @@
 - 결과:
   - 실제 삭제 여부를 반환한다.
   - 없는 키 또는 만료된 키는 miss로 처리한다.
+  - v1에서 가장 직접적인 사용자 무효화 수단으로 사용한다.
 
 ### `EXPIRE`
 - 입력:
@@ -59,6 +60,14 @@
   - `key`: 비어 있지 않은 문자열
 - 결과:
   - 없는 키 / 만료 없음 / 남은 TTL 상태를 구분할 수 있어야 한다.
+
+## 무효화 전략
+- v1에서 사용자가 데이터를 무효화하는 방법은 아래 네 가지로 한정한다.
+  - `DELETE /kv/{key}`로 즉시 제거
+  - `POST /kv/{key}/expire`로 만료 시각 설정 또는 단축
+  - TTL 만료에 따른 lazy expiration
+  - `POST /kv` 재호출로 같은 key 값을 덮어쓰기
+- 별도 `deprecated` 상태, soft delete, background invalidation worker는 도입하지 않는다.
 
 ## 입력 규칙
 - 빈 문자열 키 금지
@@ -107,62 +116,57 @@
 ## 에러 코드
 - `INVALID_KEY`
 - `INVALID_TTL`
-- `INVALID_TOPIC`
 - `KEY_NOT_FOUND`
 - `INTERNAL_ERROR`
 
-## 뉴스 헤드라인 캐싱 시나리오
+## DB 더미 데이터 캐싱 시나리오
 - 엔드포인트:
-  - `GET /demo/headlines-cache?topic={ai|gaming|economy}`
+  - `GET /demo/data-cache?key={key}`
 - 입력:
-  - `topic`: `ai`, `gaming`, `economy` 중 하나
+  - `key`: 비어 있지 않은 조회 문자열
 - origin 데이터:
-  - MongoDB에 사전 적재한 dummy headline document를 조회한다.
-  - 외부 뉴스 API는 사용하지 않는다.
-- 검증:
-  - 허용되지 않은 `topic`은 `400`과 `INVALID_TOPIC`으로 처리한다.
+  - MongoDB `dummy_items` collection에 사전 적재한 dummy document를 조회한다.
+  - 외부 API 연동은 사용하지 않는다.
 - 결과:
   - 첫 요청은 MongoDB origin을 조회해 결과를 저장하고 `source = origin`으로 반환한다.
-  - 같은 topic 요청은 TTL이 살아 있는 동안 캐시를 우선 반환하고 `source = cache`로 표시한다.
+  - 같은 `key` 요청은 TTL이 살아 있는 동안 캐시를 우선 반환하고 `source = cache`로 표시한다.
   - TTL 만료 후에는 MongoDB를 다시 조회해 결과를 갱신한다.
-  - 유효한 topic인데 결과가 비어 있으면 `200`과 빈 `articles`를 반환하고 캐시에 저장하지 않는다.
+  - 결과가 비어 있으면 `200`과 빈 `items`를 반환하고 캐시에 저장하지 않는다.
+  - 이 시나리오는 외부 API 캐싱 요구를 재현 가능한 DB-seeded origin 흐름으로 단순화한 v1 데모 계약이다.
+
+MongoDB 문서 스키마:
+- `_id`: `ObjectId`
+- `key`: `string`
+- `itemId`: `string`
+- `value`: `string`
+- `createdAt`: `datetime`
 
 요약 표:
 
 | Case | Input | Expected result |
 |------|------|------|
-| First request | `topic=ai` | `source = origin`, MongoDB read, cache write |
-| Repeated request | same `topic` within TTL | `source = cache` |
-| After TTL expiry | same `topic` after expiry | `source = origin`, MongoDB reread, refreshed payload |
-| Invalid topic | unsupported `topic` | `400`, `INVALID_TOPIC` |
-| Empty origin result | valid `topic`, no articles | `200`, empty `articles` |
+| First request | `key=sample` | `source = origin`, MongoDB read, cache write |
+| Repeated request | same `key` within TTL | `source = cache` |
+| After TTL expiry | same `key` after expiry | `source = origin`, MongoDB reread, refreshed payload |
+| Missing key | no `key` query or empty string | `400`, validation error |
+| Empty origin result | `key=not-seeded`, no items | `200`, empty `items` |
 
 응답 필드 의미:
-- `topic`
-  - 요청에 사용한 토픽 식별자
-- `locale`
-  - 고정값 `kr`
+- `key`
+  - 요청에 사용한 조회 문자열
 - `source`
   - `origin` 또는 `cache`
 - `originType`
   - 고정값 `mongodb`
 - `cacheKey`
-  - 내부 캐시 키. 예: `news:ai:kr`
+  - 내부 캐시 키
 - `ttlSecondsRemaining`
   - 캐시 hit일 때 남은 TTL 초
   - origin 응답일 때는 `null` 허용
 - `originFetchedAt`
   - MongoDB origin을 마지막으로 읽은 시각
-- `articles`
-  - 최대 3개 기사 배열
-- `articles[].title`
-  - 기사 제목
-- `articles[].source`
-  - 기사 출처명
-- `articles[].publishedAt`
-  - 기사 발행 시각
-- `articles[].url`
-  - 기사 원문 링크
+- `items`
+  - 캐시된 더미 데이터 배열
 
 권장 응답 형태:
 
@@ -170,19 +174,16 @@
 {
   "success": true,
   "data": {
-    "topic": "ai",
-    "locale": "kr",
+    "key": "sample",
     "source": "cache",
     "originType": "mongodb",
-    "cacheKey": "news:ai:kr",
+    "cacheKey": "data:sample",
     "ttlSecondsRemaining": 11,
     "originFetchedAt": "2026-03-17T10:00:00.000Z",
-    "articles": [
+    "items": [
       {
-        "title": "Example headline",
-        "source": "Example News",
-        "publishedAt": "2026-03-17T09:58:00.000Z",
-        "url": "https://example.com/article"
+        "id": "sample-1",
+        "value": "example payload"
       }
     ]
   },

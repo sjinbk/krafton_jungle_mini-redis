@@ -37,13 +37,11 @@
 
 | 항목 | 현재 상태 |
 |------|-----------|
-| runtime | 미정 |
-| framework | 미정 |
-| package manager | 미정 |
-| app port | 미정 |
-| upstream source | The News API로 가정 |
-| default TTL | 미정 |
-| allowed topics | `ai`, `gaming`, `economy` |
+| runtime | python 3.11 |
+| framework | FastAPI |
+| package manager | pip |
+| app port | FastAPI default value |
+| default TTL | 15초 |
 
 ## 설계 요약
 - 저장소는 해시 테이블 기반 인메모리 구조로 설계한다.
@@ -75,25 +73,8 @@
 ## 데모 시나리오
 - `SET`, `GET`, `DELETE` 기본 흐름을 시연한다.
 - TTL이 있는 데이터를 저장한 뒤 만료 전후 차이를 보여준다.
-- 뉴스 헤드라인 응답을 캐싱한 뒤, 재요청에서 캐시 hit가 나는 흐름을 보여준다.
-
-권장 시연 순서:
-- `POST /kv`로 기본 값을 저장한다.
-- `GET /kv/{key}`로 저장된 값을 바로 조회한다.
-- `POST /kv/{key}/expire`와 `GET /kv/{key}/ttl`로 TTL 적용을 확인한다.
-- TTL 만료 뒤 같은 키 조회가 miss로 바뀌는 것을 보여준다.
-- `GET /demo/external-cache?topic=ai`를 1회 호출해 `source = origin`을 확인한다.
-- 같은 요청을 즉시 다시 호출해 `source = cache`와 남은 TTL을 확인한다.
-- TTL 이후 다시 호출해 `source = origin`으로 돌아오고 `upstreamFetchedAt`이 갱신되는 것을 보여준다.
-
-## 데모에서 반드시 보여줄 것
-- KV 저장 후 즉시 조회 성공
-- TTL 설정 후 남은 TTL 조회
-- TTL 만료 후 miss 전환
-- 뉴스 헤드라인 첫 요청 `source = origin`
-- 같은 요청 재호출 `source = cache`
-- 테스트 실행 결과
-- 성능 비교 결과
+- DB 응답을 캐싱한 뒤, 재요청에서 캐시 hit가 나는 흐름을 보여준다.
+- 클라이언트 서버에 대한 요청 시의 동시성 처리 프로세스를 보여준다.
 
 ## 실행 방법
 구현이 완료되면 아래 정보만 채운다.
@@ -101,74 +82,6 @@
 - API 서버 실행 명령
 - 테스트 실행 명령
 - 벤치마크 실행 명령
-
-## API 예시
-구현 전 기준 계약 예시는 아래와 같다.
-
-예정 요청 예시:
-- `GET /demo/external-cache?topic=ai`
-
-예정 성공 응답 예시:
-
-```json
-{
-  "success": true,
-  "data": {
-    "topic": "ai",
-    "locale": "kr",
-    "source": "cache",
-    "cacheKey": "news:ai:kr",
-    "ttlSecondsRemaining": 11,
-    "upstreamFetchedAt": "2026-03-17T10:00:00.000Z",
-    "articles": [
-      {
-        "title": "Example headline",
-        "source": "Example News",
-        "publishedAt": "2026-03-17T09:58:00.000Z",
-        "url": "https://example.com/article"
-      }
-    ]
-  },
-  "error": null
-}
-```
-
-예정 에러 응답 예시:
-
-```json
-{
-  "success": false,
-  "data": null,
-  "error": {
-    "code": "INVALID_TOPIC",
-    "message": "Supported topics are ai, gaming, economy"
-  }
-}
-```
-
-## 테스트와 검증
-구현 전 기준으로 아래 시나리오를 우선 검증 대상으로 둔다.
-- KV 저장, 조회, 삭제
-- TTL 설정, TTL 조회, lazy expiration
-- 뉴스 헤드라인 캐시 hit
-- TTL 만료 후 origin 재호출
-- 잘못된 `topic`에 대한 `INVALID_TOPIC`
-- 빈 업스트림 결과에 대한 빈 배열 응답
-
-테스트 기준 문서는 [Test Strategy](docs/process/TEST_STRATEGY.md)이다.
-
-## 성능 비교
-계획된 비교 방식은 아래와 같다.
-- 동일한 `topic`으로 업스트림 직접 호출 시간을 측정한다.
-- 같은 `topic`으로 Mini Redis 캐시 hit 경로 시간을 측정한다.
-- 평균 시간과 총 시간을 함께 기록한다.
-- README에는 측정 환경과 warm cache 여부를 같이 남긴다.
-
-## 회고
-구현이 완료되면 아래를 채운다.
-- 설계에서 잘한 점
-- 구현 중 어려웠던 점
-- 다음에 개선할 점
 
 ## 상세 문서
 - [Project Spec](docs/spec/PROJECT_SPEC.md)

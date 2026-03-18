@@ -9,7 +9,12 @@ from fastapi.responses import JSONResponse
 from pymongo import MongoClient
 
 from src.api.responses import build_error_response, build_success_response
-from src.api.schemas import ExpireRequest, SetValueRequest
+from src.api.schemas import (
+    ConcurrencyBurstRequest,
+    ExpireRequest,
+    PerformanceCompareRequest,
+    SetValueRequest,
+)
 from src.common.config import Settings
 from src.common.executor import SingleThreadCommandExecutor
 from src.common.errors import AppError
@@ -17,6 +22,7 @@ from src.service.demo_cache_service import DemoCacheService
 from src.service.demo_cache_service import OriginRepository
 from src.service.kv_service import KeyValueService
 from src.service.mongo_origin import MongoOriginRepository
+from src.service.performance_benchmark_service import PerformanceBenchmarkService
 from src.store.in_memory import InMemoryStore
 from src.ttl.policy import SystemClock
 
@@ -30,6 +36,15 @@ def _map_validation_error(exc: RequestValidationError) -> tuple[str, str]:
         field = location[-1] if location else None
         if field == "ttlSeconds":
             return "INVALID_TTL", "ttlSeconds must be a positive integer greater than zero"
+        if field == "iterations":
+            return "INVALID_ITERATIONS", "iterations must be an integer between 1 and 100"
+        if field == "count":
+            return "INVALID_BURST_COUNT", "count must be an integer between 1 and 50"
+        if field == "scenario":
+            return (
+                "INVALID_SCENARIO",
+                "scenario must be one of sameKeyKvGetBurst, differentKeyKvGetBurst, demoCacheGetBurst",
+            )
         if field == "key":
             code = "INVALID_KEY"
             message = "Key must be a non-empty string"
@@ -45,6 +60,7 @@ def create_app(
     mongo_client: MongoClient | None = None,
     command_executor: SingleThreadCommandExecutor | None = None,
     origin_repository: OriginRepository | None = None,
+    include_performance_routes: bool = True,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     store = store or InMemoryStore()
@@ -75,6 +91,12 @@ def create_app(
         origin_repository=origin_repository,
         default_ttl_seconds=settings.default_cache_ttl_seconds,
     )
+    performance_benchmark_service = None
+    if include_performance_routes:
+        performance_benchmark_service = PerformanceBenchmarkService(
+            settings=settings,
+            app_factory=create_app,
+        )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -94,6 +116,7 @@ def create_app(
     app.state.command_executor = command_executor
     app.state.kv_service = kv_service
     app.state.demo_cache_service = demo_cache_service
+    app.state.performance_benchmark_service = performance_benchmark_service
 
     @app.exception_handler(AppError)
     def handle_app_error(_: Request, exc: AppError) -> JSONResponse:
@@ -156,6 +179,31 @@ def create_app(
     ) -> dict[str, Any]:
         data = request.app.state.demo_cache_service.get_data(key)
         return build_success_response(data)
+
+    if include_performance_routes:
+        @app.post("/demo/performance/cache-compare")
+        def compare_demo_cache_performance(
+            request: Request,
+            payload: PerformanceCompareRequest | None = None,
+        ) -> dict[str, Any]:
+            payload = payload or PerformanceCompareRequest()
+            data = request.app.state.performance_benchmark_service.compare_cache(
+                key=payload.key,
+                iterations=payload.iterations,
+            )
+            return build_success_response(data)
+
+        @app.post("/demo/performance/concurrency-burst")
+        def run_concurrency_burst(
+            request: Request,
+            payload: ConcurrencyBurstRequest,
+        ) -> dict[str, Any]:
+            data = request.app.state.performance_benchmark_service.run_concurrency_burst(
+                scenario=payload.scenario,
+                count=payload.count,
+                key=payload.key,
+            )
+            return build_success_response(data)
 
     return app
 

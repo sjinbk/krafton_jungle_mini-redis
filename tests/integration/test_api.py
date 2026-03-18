@@ -224,6 +224,112 @@ def test_invalid_requests_return_400(integration_app) -> None:
     assert missing_query_response.status_code == 400
 
 
+def test_cache_compare_performance_api_returns_expected_metrics(integration_app) -> None:
+    with TestClient(integration_app) as client:
+        response = client.post("/demo/performance/cache-compare")
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["scenario"] == "cacheCompare"
+    assert data["key"] == "sample"
+    assert data["iterations"] == 20
+    assert data["originType"] == "mongodb"
+    assert data["measuredAt"]
+
+    for timing_key in ("apiTiming", "serviceTiming"):
+        timing = data[timing_key]
+        assert timing["coldAvgMs"] >= 0
+        assert timing["warmAvgMs"] >= 0
+        assert timing["savedMs"] is not None
+        assert timing["speedupRatio"] is not None
+
+
+def test_cache_compare_performance_api_accepts_custom_input(integration_app) -> None:
+    with TestClient(integration_app) as client:
+        response = client.post(
+            "/demo/performance/cache-compare",
+            json={"key": "alpha", "iterations": 3},
+        )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["key"] == "alpha"
+    assert data["iterations"] == 3
+
+
+def test_concurrency_burst_api_supports_all_scenarios(integration_app) -> None:
+    scenarios = [
+        ("sameKeyKvGetBurst", {"scenario": "sameKeyKvGetBurst", "count": 4, "key": "sample"}),
+        ("differentKeyKvGetBurst", {"scenario": "differentKeyKvGetBurst", "count": 4}),
+        ("demoCacheGetBurst", {"scenario": "demoCacheGetBurst", "count": 4, "key": "sample"}),
+    ]
+
+    with TestClient(integration_app) as client:
+        for expected_scenario, payload in scenarios:
+            response = client.post("/demo/performance/concurrency-burst", json=payload)
+            assert response.status_code == 200
+
+            data = response.json()["data"]
+            assert data["scenario"] == expected_scenario
+            assert data["count"] == 4
+            assert data["measuredAt"]
+
+            for timing_key in ("apiTiming", "serviceTiming"):
+                timing = data[timing_key]
+                assert timing["totalElapsedMs"] >= 0
+                assert timing["avgMs"] >= 0
+                assert timing["p95Ms"] >= 0
+                assert timing["maxMs"] >= 0
+                assert timing["throughputRps"] is not None
+                assert timing["successCount"] == 4
+                assert timing["errorCount"] == 0
+                assert len(timing["timeline"]) == 4
+
+            if expected_scenario == "demoCacheGetBurst":
+                for timing_key in ("apiTiming", "serviceTiming"):
+                    assert {item["source"] for item in data[timing_key]["timeline"]} == {"cache"}
+
+
+def test_performance_apis_return_expected_validation_errors(integration_app) -> None:
+    with TestClient(integration_app) as client:
+        invalid_iterations = client.post(
+            "/demo/performance/cache-compare",
+            json={"iterations": 0},
+        )
+        invalid_count = client.post(
+            "/demo/performance/concurrency-burst",
+            json={"scenario": "sameKeyKvGetBurst", "count": 0, "key": "sample"},
+        )
+        invalid_scenario = client.post(
+            "/demo/performance/concurrency-burst",
+            json={"scenario": "unknownScenario", "count": 2, "key": "sample"},
+        )
+
+    assert invalid_iterations.status_code == 400
+    assert invalid_iterations.json()["error"]["code"] == "INVALID_ITERATIONS"
+    assert invalid_count.status_code == 400
+    assert invalid_count.json()["error"]["code"] == "INVALID_BURST_COUNT"
+    assert invalid_scenario.status_code == 400
+    assert invalid_scenario.json()["error"]["code"] == "INVALID_SCENARIO"
+
+
+def test_performance_apis_return_not_found_for_missing_benchmark_data(integration_app) -> None:
+    with TestClient(integration_app) as client:
+        cache_compare_response = client.post(
+            "/demo/performance/cache-compare",
+            json={"key": "not-seeded", "iterations": 2},
+        )
+        concurrency_response = client.post(
+            "/demo/performance/concurrency-burst",
+            json={"scenario": "demoCacheGetBurst", "count": 2, "key": "not-seeded"},
+        )
+
+    assert cache_compare_response.status_code == 404
+    assert cache_compare_response.json()["error"]["code"] == "BENCHMARK_DATA_NOT_FOUND"
+    assert concurrency_response.status_code == 404
+    assert concurrency_response.json()["error"]["code"] == "BENCHMARK_DATA_NOT_FOUND"
+
+
 def test_concurrent_kv_requests_are_globally_serialized() -> None:
     store = BlockingObservedStore({"alpha"})
     app = _build_test_app(

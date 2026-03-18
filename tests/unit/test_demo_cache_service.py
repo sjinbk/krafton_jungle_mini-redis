@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.common.executor import SingleThreadCommandExecutor
+from src.common.locks import KeyedLockManager
 from src.service.demo_cache_service import DemoCacheService
 from src.store.in_memory import InMemoryStore
 from src.ttl.policy import ManualClock
@@ -30,16 +30,14 @@ def demo_service() -> tuple[DemoCacheService, FakeOriginRepository, InMemoryStor
     )
     store = InMemoryStore()
     clock = ManualClock()
-    executor = SingleThreadCommandExecutor()
     service = DemoCacheService(
         store=store,
         clock=clock,
-        command_executor=executor,
+        lock_manager=KeyedLockManager(),
         origin_repository=repository,
         default_ttl_seconds=15,
     )
-    yield service, repository, store, clock
-    executor.shutdown()
+    return service, repository, store, clock
 
 
 def test_origin_result_is_cached(
@@ -84,3 +82,4 @@ def test_expired_cache_triggers_origin_refetch(
     assert refreshed["source"] == "origin"
     assert repository.calls == ["sample", "sample"]
     assert store.get("data:sample") is not None
+

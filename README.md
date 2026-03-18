@@ -96,7 +96,7 @@
 - `SET`, `GET`, `DELETE` 기본 흐름을 시연한다.
 - TTL이 있는 데이터를 저장한 뒤 만료 전후 차이를 보여준다.
 - MongoDB `dummy_items` 조회 결과를 캐싱한 뒤, 같은 `key` 재요청에서 캐시 hit가 나는 흐름을 보여준다.
-- 모든 명령을 전역 단일 실행 스레드에서 순차 처리하는 동시성 기준을 설명한다.
+- 같은 `key` 요청은 순차 처리하고, 다른 `key` 요청은 병렬 처리하는 동시성 기준을 설명한다.
 
 ## 실행 방법
 ### 1. 의존성 설치
@@ -194,7 +194,7 @@ curl "http://127.0.0.1:8000/demo/data-cache?key=sample"
   - invalid request `400` 처리
 - 현재 로컬 결과
   - `python -m pytest -q`
-  - `24 passed`
+  - `18 passed`
 
 ## 성능 비교
 - 측정 일시: `2026-03-18`
@@ -224,19 +224,3 @@ curl "http://127.0.0.1:8000/demo/data-cache?key=sample"
 - [Test Strategy](docs/process/TEST_STRATEGY.md)
 - [Workstream Plan](docs/planning/WORKSTREAM_PLAN.md)
 - [Decision Log](docs/decisions/DECISION_LOG.md)
-
-## 동시성 시연
-- v1 동시성은 하나의 shared command executor thread로 처리한다.
-- 같은 `key`, 다른 `key`, `KV`와 `demo cache` 조합 모두 전역 직렬화된다.
-- 자동 검증:
-```bash
-python -m pytest -q
-```
-- 발표 시연 실행:
-```bash
-python scripts/demo_concurrency.py
-```
-- 기대 결과:
-  - same-key 시나리오에서는 두 번째 명령이 첫 번째 명령 종료 뒤에 시작된다.
-  - different-key 시나리오도 병렬로 겹치지 않고, 전체 소요 시간은 두 개의 지연 구간에 가깝게 나온다.
-  - cross-service 시나리오에서는 `demo cache` 명령이 끝난 뒤에야 `KV` 명령이 실행된다.

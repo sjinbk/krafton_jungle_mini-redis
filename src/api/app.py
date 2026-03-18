@@ -11,10 +11,9 @@ from pymongo import MongoClient
 from src.api.responses import build_error_response, build_success_response
 from src.api.schemas import ExpireRequest, SetValueRequest
 from src.common.config import Settings
-from src.common.executor import SingleThreadCommandExecutor
 from src.common.errors import AppError
+from src.common.locks import KeyedLockManager
 from src.service.demo_cache_service import DemoCacheService
-from src.service.demo_cache_service import OriginRepository
 from src.service.kv_service import KeyValueService
 from src.service.mongo_origin import MongoOriginRepository
 from src.store.in_memory import InMemoryStore
@@ -43,55 +42,42 @@ def create_app(
     store: InMemoryStore | None = None,
     clock: Any | None = None,
     mongo_client: MongoClient | None = None,
-    command_executor: SingleThreadCommandExecutor | None = None,
-    origin_repository: OriginRepository | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     store = store or InMemoryStore()
     clock = clock or SystemClock()
-    owns_command_executor = command_executor is None
-    command_executor = command_executor or SingleThreadCommandExecutor()
+    lock_manager = KeyedLockManager()
 
-    owns_mongo_client = mongo_client is None and origin_repository is None
-    if origin_repository is None:
-        mongo_client = mongo_client or MongoClient(
-            settings.mongo_uri,
-            tz_aware=True,
-            serverSelectionTimeoutMS=1_000,
-        )
-        origin_repository = MongoOriginRepository(
-            mongo_client[settings.mongo_db][settings.mongo_collection]
-        )
-
-    kv_service = KeyValueService(
-        store=store,
-        clock=clock,
-        command_executor=command_executor,
+    owns_mongo_client = mongo_client is None
+    mongo_client = mongo_client or MongoClient(
+        settings.mongo_uri,
+        tz_aware=True,
+        serverSelectionTimeoutMS=1_000,
     )
+
+    origin_repository = MongoOriginRepository(
+        mongo_client[settings.mongo_db][settings.mongo_collection]
+    )
+    kv_service = KeyValueService(store=store, clock=clock, lock_manager=lock_manager)
     demo_cache_service = DemoCacheService(
         store=store,
         clock=clock,
-        command_executor=command_executor,
+        lock_manager=lock_manager,
         origin_repository=origin_repository,
         default_ttl_seconds=settings.default_cache_ttl_seconds,
     )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        try:
-            yield
-        finally:
-            if owns_command_executor:
-                command_executor.shutdown()
-            if owns_mongo_client and mongo_client is not None:
-                mongo_client.close()
+        yield
+        if owns_mongo_client:
+            mongo_client.close()
 
     app = FastAPI(title="Mini Redis", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.store = store
     app.state.clock = clock
     app.state.mongo_client = mongo_client
-    app.state.command_executor = command_executor
     app.state.kv_service = kv_service
     app.state.demo_cache_service = demo_cache_service
 
@@ -161,3 +147,4 @@ def create_app(
 
 
 app = create_app()
+

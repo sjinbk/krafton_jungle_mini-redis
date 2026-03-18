@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.common.executor import SingleThreadCommandExecutor
 from src.common.errors import AppError
+from src.common.locks import KeyedLockManager
 from src.service.kv_service import KeyValueService
 from src.store.in_memory import InMemoryStore
 from src.ttl.policy import ManualClock
@@ -13,14 +13,12 @@ from src.ttl.policy import ManualClock
 def kv_service() -> tuple[KeyValueService, InMemoryStore, ManualClock]:
     store = InMemoryStore()
     clock = ManualClock()
-    executor = SingleThreadCommandExecutor()
     service = KeyValueService(
         store=store,
         clock=clock,
-        command_executor=executor,
+        lock_manager=KeyedLockManager(),
     )
-    yield service, store, clock
-    executor.shutdown()
+    return service, store, clock
 
 
 def test_set_and_get_value(kv_service: tuple[KeyValueService, InMemoryStore, ManualClock]) -> None:
@@ -114,20 +112,3 @@ def test_invalid_ttl_is_rejected(kv_service: tuple[KeyValueService, InMemoryStor
 
     assert exc.value.code == "INVALID_TTL"
 
-
-def test_runtime_error_in_command_execution_is_propagated() -> None:
-    class FailingStore(InMemoryStore):
-        def set(self, key: str, value: object, expires_at: object = None) -> None:
-            raise RuntimeError("store write failed")
-
-    executor = SingleThreadCommandExecutor()
-    service = KeyValueService(
-        store=FailingStore(),
-        clock=ManualClock(),
-        command_executor=executor,
-    )
-
-    with pytest.raises(RuntimeError, match="store write failed"):
-        service.set_value(key="sample", value="boom")
-
-    executor.shutdown()

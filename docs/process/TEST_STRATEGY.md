@@ -25,7 +25,7 @@
 ## 테스트 데이터 원칙
 - 더미 데이터 캐싱 시나리오는 외부 API stub 대신 MongoDB dummy seed data 기준으로 검증한다.
 - 테스트 시작 전에 필요한 seed dataset을 명시적으로 준비한다.
-- seed dataset은 `dummy_items` collection에 총 4개 document만 둔다.
+- seed dataset은 `dummy_items` collection에 총 100개 document를 둔다.
 - empty result 케이스는 `key=not-seeded`처럼 document가 없는 조회 조건으로 검증한다.
 
 ## 필수 단위 테스트

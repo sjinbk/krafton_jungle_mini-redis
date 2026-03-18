@@ -32,6 +32,7 @@
 - `SET`, `GET`, `DELETE`, `EXPIRE/TTL`
 - lazy expiration 기반 TTL 처리
 - HTTP JSON 기반 공개 API
+- FastAPI 내부 경로에서 제공하는 단일 HTML 데모 페이지
 - 단위 테스트와 기능 테스트
 - DB 더미 데이터 캐싱 시나리오
 - 캐시 hit / no-cache 성능 비교
@@ -96,6 +97,7 @@
 - `SET`, `GET`, `DELETE` 기본 흐름을 시연한다.
 - TTL이 있는 데이터를 저장한 뒤 만료 전후 차이를 보여준다.
 - MongoDB `dummy_items` 조회 결과를 캐싱한 뒤, 같은 `key` 재요청에서 캐시 hit가 나는 흐름을 보여준다.
+- 원페이지 데모 UI에서 성능 비교와 동시성 burst 결과를 함께 확인한다.
 - 모든 명령을 전역 단일 실행 스레드에서 순차 처리하는 동시성 기준을 설명한다.
 
 ## 실행 방법
@@ -112,18 +114,24 @@ python -m pip install -r requirements.txt
 ```bash
 python scripts/seed_mongo.py
 ```
+- 기본 시드는 `dummy_items` collection에 총 100개 document를 넣는다.
 
 ### 4. API 서버 실행
 ```bash
 python -m uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-### 5. 테스트 실행
+### 5. 데모 페이지 열기
+```text
+http://127.0.0.1:8000/
+```
+
+### 6. 테스트 실행
 ```bash
 python -m pytest -q
 ```
 
-### 6. 벤치마크 실행
+### 7. 벤치마크 실행
 ```bash
 python benchmarks/compare_cache.py --key sample --iterations 20
 ```

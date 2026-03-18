@@ -22,10 +22,12 @@
   - `EXPIRE`
   - `TTL`
 - FastAPI 기반 HTTP JSON 공개 API
+- FastAPI 내부 경로에서 제공하는 단일 HTML 데모 페이지
 - MongoDB에 미리 적재한 더미 데이터를 origin으로 사용하는 캐싱 시나리오
 - 단위 테스트
 - 기능 테스트
 - 캐시 hit / no-cache 성능 비교
+- 동시 GET burst 성능 비교
 - README 기반 소개 및 데모 정리
 
 ## 제외 범위
@@ -35,7 +37,6 @@
 - 외부 API 연동
 - 주기적 데이터 수집 파이프라인
 - 추가 명령(`INCR`, `MGET` 등) 확장
-- 프론트엔드 구현
 
 ## 핵심 요구사항
 - 문자열 키 기준으로 값을 저장, 조회, 삭제할 수 있어야 한다.
@@ -86,7 +87,6 @@
 - persistence
 - cleanup worker
 - 추가 명령
-- 프론트엔드
 
 ## Optional 검토 항목
 - persistence
@@ -98,6 +98,7 @@
 - KV API와 TTL API가 계약대로 동작한다.
 - 캐싱 시나리오가 DB origin과 cache hit를 구분해 보여준다.
 - 최소 단위 테스트와 기능 테스트가 준비된다.
+- 단일 페이지 데모 UI에서 KV, cache demo, performance, concurrency 흐름을 바로 실행할 수 있다.
 - 성능 비교 결과를 README에 기록할 수 있다.
 
 ## 수용 기준

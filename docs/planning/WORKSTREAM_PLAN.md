@@ -15,11 +15,12 @@
 - 권장 브랜치 주제:
   - `docs/repo-contract-lock-<initials>`
 - 입력 문서:
+  - `README.md`
   - `docs/spec/PROJECT_SPEC.md`
   - `docs/spec/API_CONTRACT.md`
   - `docs/decisions/DECISION_LOG.md`
 - 산출물:
-  - 잠긴 API 계약
+  - FastAPI / MongoDB / dummy data 전제가 반영된 잠긴 API 계약
   - 필요한 결정 로그 업데이트
 - 완료 기준:
   - 공개 계약 관련 미해결 결정이 남아 있지 않다
@@ -52,14 +53,16 @@
 
 ### `WS-04` HTTP API 구현
 - 권장 브랜치 주제:
-  - `feature/api-kv-endpoints-<initials>`
+  - `feature/api-fastapi-cache-demo-<initials>`
 - 입력 문서:
   - `docs/spec/PROJECT_SPEC.md`
   - `docs/spec/API_CONTRACT.md`
   - `docs/architecture/SYSTEM_DESIGN.md`
+  - `docs/decisions/DECISION_LOG.md`
 - 산출물:
-  - HTTP 엔드포인트
+  - FastAPI HTTP 엔드포인트
   - 요청/응답 형식
+  - MongoDB origin 조회 협력 로직
   - 뉴스 헤드라인 캐싱 데모 엔드포인트
 - 완료 기준:
   - 기능 테스트를 붙일 수 있는 공개 API가 준비된다
@@ -70,9 +73,11 @@
 - 입력 문서:
   - `docs/process/TEST_STRATEGY.md`
   - `docs/spec/PROJECT_SPEC.md`
+  - `docs/spec/API_CONTRACT.md`
 - 산출물:
   - 단위 테스트
   - 기능 테스트
+  - MongoDB dummy seed 기반 테스트 fixture
   - 성능 비교 스크립트
 - 완료 기준:
   - 수용 기준에 대응되는 테스트가 존재한다
@@ -87,6 +92,7 @@
 - 산출물:
   - 실행 방법
   - API 예시
+  - MongoDB 더미 데이터 데모 설명
   - 테스트 결과
   - 성능 비교 결과
 - 완료 기준:

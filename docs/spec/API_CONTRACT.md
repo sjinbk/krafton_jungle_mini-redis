@@ -10,7 +10,7 @@
 | `DELETE` | `/kv/{key}` | key 삭제 | path `key` | `200`, `404` |
 | `POST` | `/kv/{key}/expire` | TTL 설정 | path `key`, body `ttlSeconds` | `200`, `400`, `404` |
 | `GET` | `/kv/{key}/ttl` | TTL 조회 | path `key` | `200`, `404` |
-| `GET` | `/demo/external-cache` | 뉴스 헤드라인 캐싱 데모 | query `topic` | `200`, `400`, `500` |
+| `GET` | `/demo/headlines-cache` | MongoDB 기반 뉴스 헤드라인 캐싱 데모 | query `topic` | `200`, `400`, `500` |
 
 ## 구현 우선순위
 - 필수 구현
@@ -18,7 +18,7 @@
   - `GET /kv/{key}`
   - `DELETE /kv/{key}`
   - `POST /kv/{key}/expire`
-  - `GET /demo/external-cache`
+  - `GET /demo/headlines-cache`
 - 여유가 있으면 추가
   - `GET /kv/{key}/ttl`
 
@@ -113,26 +113,29 @@
 
 ## 뉴스 헤드라인 캐싱 시나리오
 - 엔드포인트:
-  - `GET /demo/external-cache?topic={ai|gaming|economy}`
+  - `GET /demo/headlines-cache?topic={ai|gaming|economy}`
 - 입력:
   - `topic`: `ai`, `gaming`, `economy` 중 하나
+- origin 데이터:
+  - MongoDB에 사전 적재한 dummy headline document를 조회한다.
+  - 외부 뉴스 API는 사용하지 않는다.
 - 검증:
   - 허용되지 않은 `topic`은 `400`과 `INVALID_TOPIC`으로 처리한다.
 - 결과:
-  - 첫 요청은 The News API 업스트림을 호출해 결과를 저장하고 `source = origin`으로 반환한다.
-  - 같은 토픽 요청은 TTL이 살아 있는 동안 캐시를 우선 반환하고 `source = cache`로 표시한다.
-  - TTL 만료 후에는 다시 업스트림을 호출해 결과를 갱신한다.
-  - 유효한 토픽인데 결과가 비어 있으면 `200`과 빈 `articles`를 반환하고 캐시에 저장하지 않는다.
+  - 첫 요청은 MongoDB origin을 조회해 결과를 저장하고 `source = origin`으로 반환한다.
+  - 같은 topic 요청은 TTL이 살아 있는 동안 캐시를 우선 반환하고 `source = cache`로 표시한다.
+  - TTL 만료 후에는 MongoDB를 다시 조회해 결과를 갱신한다.
+  - 유효한 topic인데 결과가 비어 있으면 `200`과 빈 `articles`를 반환하고 캐시에 저장하지 않는다.
 
 요약 표:
 
 | Case | Input | Expected result |
 |------|------|------|
-| First request | `topic=ai` | `source = origin`, cache write |
+| First request | `topic=ai` | `source = origin`, MongoDB read, cache write |
 | Repeated request | same `topic` within TTL | `source = cache` |
-| After TTL expiry | same `topic` after expiry | `source = origin`, refreshed payload |
+| After TTL expiry | same `topic` after expiry | `source = origin`, MongoDB reread, refreshed payload |
 | Invalid topic | unsupported `topic` | `400`, `INVALID_TOPIC` |
-| Empty upstream result | valid `topic`, no articles | `200`, empty `articles` |
+| Empty origin result | valid `topic`, no articles | `200`, empty `articles` |
 
 응답 필드 의미:
 - `topic`
@@ -141,12 +144,15 @@
   - 고정값 `kr`
 - `source`
   - `origin` 또는 `cache`
+- `originType`
+  - 고정값 `mongodb`
 - `cacheKey`
   - 내부 캐시 키. 예: `news:ai:kr`
 - `ttlSecondsRemaining`
   - 캐시 hit일 때 남은 TTL 초
-- `upstreamFetchedAt`
-  - 업스트림을 마지막으로 가져온 시각
+  - origin 응답일 때는 `null` 허용
+- `originFetchedAt`
+  - MongoDB origin을 마지막으로 읽은 시각
 - `articles`
   - 최대 3개 기사 배열
 - `articles[].title`
@@ -167,9 +173,10 @@
     "topic": "ai",
     "locale": "kr",
     "source": "cache",
+    "originType": "mongodb",
     "cacheKey": "news:ai:kr",
     "ttlSecondsRemaining": 11,
-    "upstreamFetchedAt": "2026-03-17T10:00:00.000Z",
+    "originFetchedAt": "2026-03-17T10:00:00.000Z",
     "articles": [
       {
         "title": "Example headline",

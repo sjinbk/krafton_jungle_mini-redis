@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Query, Request, Response, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pymongo import MongoClient
 
 from src.api.responses import build_error_response, build_success_response
@@ -25,6 +26,8 @@ from src.service.mongo_origin import MongoOriginRepository
 from src.service.performance_benchmark_service import PerformanceBenchmarkService
 from src.store.in_memory import InMemoryStore
 from src.ttl.policy import SystemClock
+
+DEMO_PAGE_HTML = Path(__file__).with_name("demo_page.html").read_text(encoding="utf8")
 
 
 def _map_validation_error(exc: RequestValidationError) -> tuple[str, str]:
@@ -117,6 +120,10 @@ def create_app(
     app.state.kv_service = kv_service
     app.state.demo_cache_service = demo_cache_service
     app.state.performance_benchmark_service = performance_benchmark_service
+
+    @app.get("/", include_in_schema=False)
+    def get_demo_page() -> HTMLResponse:
+        return HTMLResponse(content=DEMO_PAGE_HTML)
 
     @app.exception_handler(AppError)
     def handle_app_error(_: Request, exc: AppError) -> JSONResponse:

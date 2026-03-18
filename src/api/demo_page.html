@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>미니 레디스 데모</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: #111;
+        background: #f7f7f7;
+        font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+      }
+
+      .page {
+        width: min(960px, calc(100% - 24px));
+        margin: 20px auto 40px;
+      }
+
+      .section {
+        margin-bottom: 16px;
+        padding: 18px;
+        border: 1px solid #d7d7d7;
+        background: #fff;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0 0 12px;
+      }
+
+      p,
+      li {
+        line-height: 1.55;
+      }
+
+      .help {
+        margin: 6px 0 0;
+        color: #555;
+        font-size: 14px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .full {
+        grid-column: 1 / -1;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 14px;
+      }
+
+      input,
+      textarea,
+      select,
+      button {
+        width: 100%;
+        font: inherit;
+      }
+
+      input,
+      textarea,
+      select {
+        padding: 10px 12px;
+        border: 1px solid #cfcfcf;
+        background: #fff;
+      }
+
+      textarea {
+        min-height: 90px;
+        resize: vertical;
+        font-family: "Consolas", "Courier New", monospace;
+      }
+
+      .button-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .button-row button {
+        width: auto;
+        min-height: 42px;
+        padding: 10px 14px;
+        border: 1px solid #111;
+        background: #fff;
+        cursor: pointer;
+      }
+
+      .button-row button.primary {
+        color: #fff;
+        background: #111;
+      }
+
+      .button-row button:disabled {
+        opacity: 0.65;
+        cursor: wait;
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .summary-box,
+      .meta-box {
+        padding: 12px;
+        border: 1px solid #d7d7d7;
+        background: #fafafa;
+      }
+
+      .summary-box strong,
+      .meta-box strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 13px;
+      }
+
+      .summary-box span,
+      .meta-box span {
+        display: block;
+        font-weight: 700;
+      }
+
+      .two-column {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .metric-box {
+        padding: 12px;
+        border: 1px solid #d7d7d7;
+        background: #fafafa;
+      }
+
+      .metric-box dl {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px 12px;
+        margin: 12px 0 0;
+      }
+
+      .metric-box dt {
+        margin: 0;
+        font-size: 14px;
+        color: #444;
+      }
+
+      .metric-box dd {
+        margin: 0;
+        text-align: right;
+        font-weight: 700;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 12px;
+      }
+
+      th,
+      td {
+        padding: 10px;
+        border: 1px solid #d7d7d7;
+        text-align: left;
+        font-size: 14px;
+      }
+
+      pre {
+        overflow-x: auto;
+        margin: 12px 0 0;
+        padding: 14px;
+        border: 1px solid #d7d7d7;
+        background: #111;
+        color: #f3f3f3;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .empty {
+        margin-top: 12px;
+        padding: 12px;
+        border: 1px dashed #cfcfcf;
+        color: #555;
+        background: #fafafa;
+      }
+
+      .result-meta {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      @media (max-width: 900px) {
+        .grid,
+        .summary-grid,
+        .two-column,
+        .result-meta {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .page {
+          width: min(100% - 12px, 960px);
+        }
+
+        .section {
+          padding: 14px;
+        }
+
+        .button-row button {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <section class="section">
+        <h1>미니 레디스 데모 페이지</h1>
+        <p>이 페이지는 버튼을 눌러서 바로 기능이 동작하는지 확인하는 용도입니다.</p>
+        <p class="help">현재 서버 주소: <strong id="server-origin">확인 중...</strong></p>
+        <p class="help">권장 순서: 값 저장 -> 값 조회 -> 만료 설정 -> TTL 확인 -> 더미 데이터 조회 -> 성능 비교 -> 동시성 확인</p>
+      </section>
+
+      <section class="section">
+        <h2>1. 기본 KV 기능</h2>
+        <p class="help">아래 입력값을 공유해서 사용합니다. `값`은 일반 문자열이나 JSON 문자열 모두 가능합니다.</p>
+        <div class="grid">
+          <div>
+            <label for="kv-key">키</label>
+            <input id="kv-key" type="text" value="hello" />
+          </div>
+          <div>
+            <label for="kv-ttl">TTL 초</label>
+            <input id="kv-ttl" type="number" min="1" step="1" placeholder="SET에서는 선택, EXPIRE에서는 필수" />
+          </div>
+          <div>
+            <label for="kv-value-preview">값 미리보기</label>
+            <input id="kv-value-preview" type="text" value='{"message":"world"}' readonly />
+          </div>
+          <div class="full">
+            <label for="kv-value">값</label>
+            <textarea id="kv-value">{"message":"world"}</textarea>
+          </div>
+        </div>
+        <div class="button-row">
+          <button class="primary" data-kv-action="SET" data-default-label="값 저장 (SET)" data-loading-label="실행 중...">값 저장 (SET)</button>
+          <button data-kv-action="GET" data-default-label="값 조회 (GET)" data-loading-label="실행 중...">값 조회 (GET)</button>
+          <button data-kv-action="DELETE" data-default-label="값 삭제 (DELETE)" data-loading-label="실행 중...">값 삭제 (DELETE)</button>
+          <button data-kv-action="EXPIRE" data-default-label="만료 설정 (EXPIRE)" data-loading-label="실행 중...">만료 설정 (EXPIRE)</button>
+          <button data-kv-action="TTL" data-default-label="TTL 확인" data-loading-label="실행 중...">TTL 확인</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>2. 더미 데이터 캐시 확인</h2>
+        <p class="help">처음에는 origin, 다시 누르면 cache, TTL이 지나면 다시 origin 이 나와야 정상입니다.</p>
+        <div class="grid">
+          <div>
+            <label for="demo-key">더미 데이터 키</label>
+            <input id="demo-key" type="text" value="sample" />
+          </div>
+        </div>
+        <div class="button-row">
+          <button id="demo-cache-button" class="primary" data-default-label="더미 데이터 조회" data-loading-label="조회 중...">더미 데이터 조회</button>
+        </div>
+        <div id="demo-summary" class="summary-grid"></div>
+      </section>
+
+      <section class="section">
+        <h2>3. 성능 비교</h2>
+        <p class="help">cold(캐시 없이 처음 읽기) 와 warm(캐시에서 다시 읽기) 결과를 비교합니다.</p>
+        <div class="grid">
+          <div>
+            <label for="performance-key">비교할 키</label>
+            <input id="performance-key" type="text" value="sample" />
+          </div>
+          <div>
+            <label for="performance-iterations">반복 횟수</label>
+            <input id="performance-iterations" type="number" min="1" max="100" step="1" value="20" />
+          </div>
+        </div>
+        <div class="button-row">
+          <button id="performance-button" class="primary" data-default-label="성능 비교 실행" data-loading-label="실행 중...">성능 비교 실행</button>
+        </div>
+        <div id="performance-results"></div>
+      </section>
+
+      <section class="section">
+        <h2>4. 동시성 확인</h2>
+        <p class="help">같은 키, 다른 키, 캐시 키에 대한 동시 요청 결과를 확인합니다.</p>
+        <div class="grid">
+          <div>
+            <label for="concurrency-scenario">시나리오</label>
+            <select id="concurrency-scenario">
+              <option value="sameKeyKvGetBurst" selected>sameKeyKvGetBurst (같은 키 동시 조회)</option>
+              <option value="differentKeyKvGetBurst">differentKeyKvGetBurst (다른 키 동시 조회)</option>
+              <option value="demoCacheGetBurst">demoCacheGetBurst (캐시 데이터 동시 조회)</option>
+            </select>
+          </div>
+          <div>
+            <label for="concurrency-count">요청 수</label>
+            <input id="concurrency-count" type="number" min="1" max="50" step="1" value="10" />
+          </div>
+          <div>
+            <label for="concurrency-key">키</label>
+            <input id="concurrency-key" type="text" value="sample" />
+          </div>
+        </div>
+        <div class="button-row">
+          <button id="concurrency-button" class="primary" data-default-label="동시성 확인 실행" data-loading-label="실행 중...">동시성 확인 실행</button>
+        </div>
+        <div id="concurrency-results"></div>
+        <div>
+          <h3 style="margin-top: 16px;">타임라인 미리보기</h3>
+          <p class="help">아래 표는 API timing 기준 일부 요청만 보여줍니다. 전체 데이터는 맨 아래 JSON에서 확인할 수 있습니다.</p>
+          <div style="overflow-x: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>요청 ID</th>
+                  <th>키</th>
+                  <th>걸린 시간(ms)</th>
+                  <th>상태 코드</th>
+                  <th>source</th>
+                </tr>
+              </thead>
+              <tbody id="timeline-body"></tbody>
+            </table>
+          </div>
+          <p id="timeline-note" class="help"></p>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>5. 마지막 응답</h2>
+        <p class="help">어떤 버튼을 누르든 마지막 응답은 여기 한 곳에 모아 보여줍니다.</p>
+        <div class="result-meta">
+          <div class="meta-box">
+            <strong>마지막 호출</strong>
+            <span id="result-endpoint">-</span>
+          </div>
+          <div class="meta-box">
+            <strong>HTTP 상태</strong>
+            <span id="result-status">-</span>
+          </div>
+          <div class="meta-box">
+            <strong>성공 여부</strong>
+            <span id="result-success">-</span>
+          </div>
+        </div>
+        <pre id="result-json">{
+  "success": null,
+  "data": null,
+  "error": null
+}</pre>
+      </section>
+    </div>
+
+    <script>
+      const byId = (id) => document.getElementById(id);
+      const formatValue = (value, fallback = "-") => {
+        if (value === null || value === undefined || value === "") {
+          return fallback;
+        }
+        if (typeof value === "number") {
+          return Number.isInteger(value) ? String(value) : value.toFixed(3);
+        }
+        return String(value);
+      };
+      const escapeHtml = (value) =>
+        String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      const parseFlexibleValue = (raw) => {
+        if (raw.trim() === "") {
+          return "";
+        }
+        try {
+          return JSON.parse(raw);
+        } catch (_) {
+          return raw;
+        }
+      };
+      const parseOptionalInteger = (raw) => {
+        if (raw.trim() === "") {
+          return undefined;
+        }
+        const parsed = Number(raw);
+        if (!Number.isInteger(parsed)) {
+          throw new Error("정수만 입력해 주세요.");
+        }
+        return parsed;
+      };
+      const parseRequiredInteger = (raw, label) => {
+        const parsed = parseOptionalInteger(raw);
+        if (parsed === undefined) {
+          throw new Error(label + " 입력이 필요합니다.");
+        }
+        return parsed;
+      };
+      const readRequiredText = (value, label) => {
+        if (value.trim() === "") {
+          throw new Error(label + " 입력이 필요합니다.");
+        }
+        return value.trim();
+      };
+      const setBusy = (button, busy) => {
+        if (!button) {
+          return;
+        }
+        button.disabled = busy;
+        button.textContent = busy ? button.dataset.loadingLabel : button.dataset.defaultLabel;
+      };
+      const renderResult = ({ label, status, payload }) => {
+        byId("result-endpoint").textContent = label;
+        byId("result-status").textContent = formatValue(status);
+        byId("result-success").textContent = payload && payload.success ? "성공" : "실패";
+        byId("result-json").textContent = JSON.stringify(payload, null, 2);
+      };
+      const renderClientError = (label, message) => {
+        renderResult({
+          label,
+          status: "-",
+          payload: {
+            success: false,
+            data: null,
+            error: {
+              code: "CLIENT_INPUT_ERROR",
+              message
+            }
+          }
+        });
+      };
+      const requestJson = async ({ label, endpoint, method, body, button }) => {
+        setBusy(button, true);
+        try {
+          const options = {
+            method,
+            headers: {
+              Accept: "application/json"
+            }
+          };
+          if (body !== undefined) {
+            options.headers["Content-Type"] = "application/json";
+            options.body = JSON.stringify(body);
+          }
+          const response = await fetch(endpoint, options);
+          const payload = await response.json();
+          renderResult({ label, status: response.status, payload });
+          return payload;
+        } catch (error) {
+          const payload = {
+            success: false,
+            data: null,
+            error: {
+              code: "NETWORK_ERROR",
+              message: error instanceof Error ? error.message : "네트워크 오류"
+            }
+          };
+          renderResult({ label, status: "-", payload });
+          return payload;
+        } finally {
+          setBusy(button, false);
+        }
+      };
+      const metricBox = (title, metrics) => {
+        const rows = Object.entries(metrics)
+          .map(([key, value]) => "<dt>" + escapeHtml(key) + "</dt><dd>" + escapeHtml(formatValue(value)) + "</dd>")
+          .join("");
+        return '<div class="metric-box"><strong>' + escapeHtml(title) + "</strong><dl>" + rows + "</dl></div>";
+      };
+      const setInitialState = () => {
+        byId("demo-summary").innerHTML = [
+          ["source", "-"],
+          ["남은 TTL", "-"],
+          ["아이템 개수", "-"],
+          ["origin 읽은 시각", "-"]
+        ].map(([label, value]) => '<div class="summary-box"><strong>' + label + "</strong><span>" + value + "</span></div>").join("");
+        byId("performance-results").innerHTML = '<div class="empty">성능 비교 실행 버튼을 누르면 결과가 여기에 표시됩니다.</div>';
+        byId("concurrency-results").innerHTML = '<div class="empty">동시성 확인 실행 버튼을 누르면 결과가 여기에 표시됩니다.</div>';
+        byId("timeline-body").innerHTML = '<tr><td colspan="5">동시성 확인 실행 전입니다.</td></tr>';
+        byId("timeline-note").textContent = "아직 실행하지 않았습니다.";
+      };
+      const renderDemoSummary = (payload) => {
+        const data = payload && payload.success ? payload.data : null;
+        const items = data && Array.isArray(data.items) ? data.items.length : "-";
+        byId("demo-summary").innerHTML = [
+          ["source", data ? formatValue(data.source) : "-"],
+          ["남은 TTL", data ? formatValue(data.ttlSecondsRemaining) : "-"],
+          ["아이템 개수", formatValue(items)],
+          ["origin 읽은 시각", data ? formatValue(data.originFetchedAt) : "-"]
+        ].map(([label, value]) => '<div class="summary-box"><strong>' + label + "</strong><span>" + escapeHtml(value) + "</span></div>").join("");
+      };
+      const renderPerformanceResults = (payload) => {
+        if (!payload.success || !payload.data) {
+          const code = payload.error && payload.error.code ? payload.error.code : "UNKNOWN_ERROR";
+          byId("performance-results").innerHTML = '<div class="empty">실패: ' + escapeHtml(code) + "</div>";
+          return;
+        }
+        const data = payload.data;
+        byId("performance-results").innerHTML =
+          '<div class="two-column">' +
+          metricBox("API 기준", {
+            "coldAvgMs (캐시 없이 처음 읽은 평균 시간)": data.apiTiming.coldAvgMs,
+            "warmAvgMs (캐시에서 다시 읽은 평균 시간)": data.apiTiming.warmAvgMs,
+            "savedMs (절약된 시간)": data.apiTiming.savedMs,
+            "speedupRatio (빨라진 배수)": data.apiTiming.speedupRatio
+          }) +
+          metricBox("서비스 기준", {
+            "coldAvgMs (캐시 없이 처음 읽은 평균 시간)": data.serviceTiming.coldAvgMs,
+            "warmAvgMs (캐시에서 다시 읽은 평균 시간)": data.serviceTiming.warmAvgMs,
+            "savedMs (절약된 시간)": data.serviceTiming.savedMs,
+            "speedupRatio (빨라진 배수)": data.serviceTiming.speedupRatio
+          }) +
+          "</div>";
+      };
+      const renderTimeline = (timeline) => {
+        if (!Array.isArray(timeline) || timeline.length === 0) {
+          byId("timeline-body").innerHTML = '<tr><td colspan="5">표시할 타임라인이 없습니다.</td></tr>';
+          byId("timeline-note").textContent = "타임라인 없음";
+          return;
+        }
+        const preview = timeline.slice(0, 6);
+        byId("timeline-body").innerHTML = preview
+          .map(
+            (row) =>
+              "<tr>" +
+              "<td>" + escapeHtml(formatValue(row.requestId)) + "</td>" +
+              "<td>" + escapeHtml(formatValue(row.key)) + "</td>" +
+              "<td>" + escapeHtml(formatValue(row.durationMs)) + "</td>" +
+              "<td>" + escapeHtml(formatValue(row.statusCode)) + "</td>" +
+              "<td>" + escapeHtml(formatValue(row.source)) + "</td>" +
+              "</tr>"
+          )
+          .join("");
+        byId("timeline-note").textContent =
+          timeline.length > preview.length
+            ? "앞의 " + preview.length + "개만 보여주고 있습니다. 전체는 아래 JSON을 확인하세요."
+            : "전체 " + timeline.length + "개 요청을 표시하고 있습니다.";
+      };
+      const renderConcurrencyResults = (payload) => {
+        if (!payload.success || !payload.data) {
+          const code = payload.error && payload.error.code ? payload.error.code : "UNKNOWN_ERROR";
+          byId("concurrency-results").innerHTML = '<div class="empty">실패: ' + escapeHtml(code) + "</div>";
+          renderTimeline([]);
+          return;
+        }
+        const data = payload.data;
+        byId("concurrency-results").innerHTML =
+          '<div class="two-column">' +
+          metricBox("API 기준", {
+            "totalElapsedMs (전체 걸린 시간)": data.apiTiming.totalElapsedMs,
+            "avgMs (평균 시간)": data.apiTiming.avgMs,
+            "p95Ms (상위 95% 기준 시간)": data.apiTiming.p95Ms,
+            "maxMs (최대 시간)": data.apiTiming.maxMs,
+            "throughputRps (초당 처리량)": data.apiTiming.throughputRps,
+            "successCount (성공 개수)": data.apiTiming.successCount,
+            "errorCount (실패 개수)": data.apiTiming.errorCount
+          }) +
+          metricBox("서비스 기준", {
+            "totalElapsedMs (전체 걸린 시간)": data.serviceTiming.totalElapsedMs,
+            "avgMs (평균 시간)": data.serviceTiming.avgMs,
+            "p95Ms (상위 95% 기준 시간)": data.serviceTiming.p95Ms,
+            "maxMs (최대 시간)": data.serviceTiming.maxMs,
+            "throughputRps (초당 처리량)": data.serviceTiming.throughputRps,
+            "successCount (성공 개수)": data.serviceTiming.successCount,
+            "errorCount (실패 개수)": data.serviceTiming.errorCount
+          }) +
+          "</div>";
+        renderTimeline(data.apiTiming.timeline);
+      };
+
+      document.querySelectorAll("[data-kv-action]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const action = button.dataset.kvAction;
+          const key = byId("kv-key").value;
+          const ttl = byId("kv-ttl").value;
+          const value = byId("kv-value").value;
+
+          try {
+            if (action === "SET") {
+              const body = {
+                key: readRequiredText(key, "키"),
+                value: parseFlexibleValue(value)
+              };
+              const ttlValue = parseOptionalInteger(ttl);
+              if (ttlValue !== undefined) {
+                body.ttlSeconds = ttlValue;
+              }
+              await requestJson({
+                label: "POST /kv",
+                endpoint: "/kv",
+                method: "POST",
+                body,
+                button
+              });
+              return;
+            }
+
+            const safeKey = encodeURIComponent(readRequiredText(key, "키"));
+            if (action === "GET") {
+              await requestJson({
+                label: "GET /kv/" + safeKey,
+                endpoint: "/kv/" + safeKey,
+                method: "GET",
+                button
+              });
+              return;
+            }
+
+            if (action === "DELETE") {
+              await requestJson({
+                label: "DELETE /kv/" + safeKey,
+                endpoint: "/kv/" + safeKey,
+                method: "DELETE",
+                button
+              });
+              return;
+            }
+
+            if (action === "EXPIRE") {
+              await requestJson({
+                label: "POST /kv/" + safeKey + "/expire",
+                endpoint: "/kv/" + safeKey + "/expire",
+                method: "POST",
+                body: {
+                  ttlSeconds: parseRequiredInteger(ttl, "TTL 초")
+                },
+                button
+              });
+              return;
+            }
+
+            await requestJson({
+              label: "GET /kv/" + safeKey + "/ttl",
+              endpoint: "/kv/" + safeKey + "/ttl",
+              method: "GET",
+              button
+            });
+          } catch (error) {
+            renderClientError(action, error instanceof Error ? error.message : "입력값을 확인해 주세요.");
+          }
+        });
+      });
+
+      byId("demo-cache-button").addEventListener("click", async () => {
+        try {
+          const safeKey = encodeURIComponent(readRequiredText(byId("demo-key").value, "더미 데이터 키"));
+          const payload = await requestJson({
+            label: "GET /demo/data-cache?key=" + safeKey,
+            endpoint: "/demo/data-cache?key=" + safeKey,
+            method: "GET",
+            button: byId("demo-cache-button")
+          });
+          renderDemoSummary(payload);
+        } catch (error) {
+          renderClientError("GET /demo/data-cache", error instanceof Error ? error.message : "입력값을 확인해 주세요.");
+          renderDemoSummary({ success: false });
+        }
+      });
+
+      byId("performance-button").addEventListener("click", async () => {
+        try {
+          const payload = await requestJson({
+            label: "POST /demo/performance/cache-compare",
+            endpoint: "/demo/performance/cache-compare",
+            method: "POST",
+            body: {
+              key: byId("performance-key").value.trim() || "sample",
+              iterations:
+                byId("performance-iterations").value.trim() === ""
+                  ? 20
+                  : parseRequiredInteger(byId("performance-iterations").value, "반복 횟수")
+            },
+            button: byId("performance-button")
+          });
+          renderPerformanceResults(payload);
+        } catch (error) {
+          renderClientError("POST /demo/performance/cache-compare", error instanceof Error ? error.message : "입력값을 확인해 주세요.");
+          renderPerformanceResults({ success: false, error: { code: "CLIENT_INPUT_ERROR" } });
+        }
+      });
+
+      byId("concurrency-button").addEventListener("click", async () => {
+        try {
+          const payload = await requestJson({
+            label: "POST /demo/performance/concurrency-burst",
+            endpoint: "/demo/performance/concurrency-burst",
+            method: "POST",
+            body: {
+              scenario: byId("concurrency-scenario").value,
+              count:
+                byId("concurrency-count").value.trim() === ""
+                  ? 10
+                  : parseRequiredInteger(byId("concurrency-count").value, "요청 수"),
+              key: byId("concurrency-key").value.trim() || "sample"
+            },
+            button: byId("concurrency-button")
+          });
+          renderConcurrencyResults(payload);
+        } catch (error) {
+          renderClientError("POST /demo/performance/concurrency-burst", error instanceof Error ? error.message : "입력값을 확인해 주세요.");
+          renderConcurrencyResults({ success: false, error: { code: "CLIENT_INPUT_ERROR" } });
+        }
+      });
+
+      byId("kv-value").addEventListener("input", () => {
+        byId("kv-value-preview").value = byId("kv-value").value;
+      });
+
+      byId("server-origin").textContent = window.location.origin;
+      setInitialState();
+    </script>
+  </body>
+</html>

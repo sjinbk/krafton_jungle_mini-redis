@@ -10,8 +10,12 @@ from fastapi.testclient import TestClient
 
 from src.api.app import create_app
 from src.common.config import Settings
+from src.common.seed_data import DEFAULT_DUMMY_ITEMS
 from src.store.in_memory import InMemoryStore
 from src.ttl.policy import ManualClock
+
+
+SEEDED_SAMPLE_ITEM_COUNT = sum(1 for item in DEFAULT_DUMMY_ITEMS if item["key"] == "sample")
 
 
 @dataclass(slots=True)
@@ -188,7 +192,7 @@ def test_demo_cache_flow_uses_origin_then_cache_then_origin_after_expiry(integra
 
     assert first_response.status_code == 200
     assert first_response.json()["data"]["source"] == "origin"
-    assert len(first_response.json()["data"]["items"]) == 2
+    assert len(first_response.json()["data"]["items"]) == SEEDED_SAMPLE_ITEM_COUNT
 
     assert second_response.status_code == 200
     assert second_response.json()["data"]["source"] == "cache"

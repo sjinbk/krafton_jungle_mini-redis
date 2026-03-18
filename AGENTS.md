@@ -1,6 +1,6 @@
 # Mini Redis Agent Guide
 
-이 저장소에서 작업하는 Codex 또는 유사 에이전트는 구현 전 아래 문서를 반드시 읽는다. 이 문서가 유일한 에이전트 진입점이다.
+이 저장소에서 작업하는 AI 에이전트는 구현 전 아래 문서를 반드시 읽는다. 이 문서가 유일한 에이전트 진입점이다.
 
 ## Mandatory Read Order
 1. `docs/spec/PROJECT_SPEC.md`

@@ -3,18 +3,24 @@
 이 문서는 공개 API 계약의 단일 원본이다. 엔드포인트, 요청/응답 형식, 상태 코드, validation 규칙은 이 문서를 기준으로 한다.
 
 ## 공개 엔드포인트
-- `POST /kv`
-  - key/value 저장
-- `GET /kv/{key}`
-  - key 조회
-- `DELETE /kv/{key}`
-  - key 삭제
-- `POST /kv/{key}/expire`
-  - TTL 설정
-- `GET /kv/{key}/ttl`
-  - TTL 조회
-- `GET /demo/external-cache`
-  - 외부 API 캐싱 데모
+| Method | Path | Purpose | Required params | Success / Error |
+|------|------|------|------|------|
+| `POST` | `/kv` | key/value 저장 | `key`, `value`, optional `ttlSeconds` | `200/201`, `400` |
+| `GET` | `/kv/{key}` | key 조회 | path `key` | `200`, `404` |
+| `DELETE` | `/kv/{key}` | key 삭제 | path `key` | `200`, `404` |
+| `POST` | `/kv/{key}/expire` | TTL 설정 | path `key`, body `ttlSeconds` | `200`, `400`, `404` |
+| `GET` | `/kv/{key}/ttl` | TTL 조회 | path `key` | `200`, `404` |
+| `GET` | `/demo/external-cache` | 뉴스 헤드라인 캐싱 데모 | query `topic` | `200`, `400`, `500` |
+
+## 구현 우선순위
+- 필수 구현
+  - `POST /kv`
+  - `GET /kv/{key}`
+  - `DELETE /kv/{key}`
+  - `POST /kv/{key}/expire`
+  - `GET /demo/external-cache`
+- 여유가 있으면 추가
+  - `GET /kv/{key}/ttl`
 
 ## 명령 의미
 ### `SET`
@@ -101,12 +107,78 @@
 ## 에러 코드
 - `INVALID_KEY`
 - `INVALID_TTL`
+- `INVALID_TOPIC`
 - `KEY_NOT_FOUND`
 - `INTERNAL_ERROR`
 
-## 외부 API 캐싱 시나리오
-- 외부 API를 하나 호출한다.
-- 응답을 Mini Redis에 저장한다.
-- 같은 요청이 들어오면 TTL이 살아 있는 동안 캐시를 우선 반환한다.
-- TTL 만료 후에는 다시 외부 API를 호출해 갱신한다.
-- 이 흐름은 `GET /demo/external-cache` 또는 이에 대응되는 단일 엔드포인트로 노출한다.
+## 뉴스 헤드라인 캐싱 시나리오
+- 엔드포인트:
+  - `GET /demo/external-cache?topic={ai|gaming|economy}`
+- 입력:
+  - `topic`: `ai`, `gaming`, `economy` 중 하나
+- 검증:
+  - 허용되지 않은 `topic`은 `400`과 `INVALID_TOPIC`으로 처리한다.
+- 결과:
+  - 첫 요청은 The News API 업스트림을 호출해 결과를 저장하고 `source = origin`으로 반환한다.
+  - 같은 토픽 요청은 TTL이 살아 있는 동안 캐시를 우선 반환하고 `source = cache`로 표시한다.
+  - TTL 만료 후에는 다시 업스트림을 호출해 결과를 갱신한다.
+  - 유효한 토픽인데 결과가 비어 있으면 `200`과 빈 `articles`를 반환하고 캐시에 저장하지 않는다.
+
+요약 표:
+
+| Case | Input | Expected result |
+|------|------|------|
+| First request | `topic=ai` | `source = origin`, cache write |
+| Repeated request | same `topic` within TTL | `source = cache` |
+| After TTL expiry | same `topic` after expiry | `source = origin`, refreshed payload |
+| Invalid topic | unsupported `topic` | `400`, `INVALID_TOPIC` |
+| Empty upstream result | valid `topic`, no articles | `200`, empty `articles` |
+
+응답 필드 의미:
+- `topic`
+  - 요청에 사용한 토픽 식별자
+- `locale`
+  - 고정값 `kr`
+- `source`
+  - `origin` 또는 `cache`
+- `cacheKey`
+  - 내부 캐시 키. 예: `news:ai:kr`
+- `ttlSecondsRemaining`
+  - 캐시 hit일 때 남은 TTL 초
+- `upstreamFetchedAt`
+  - 업스트림을 마지막으로 가져온 시각
+- `articles`
+  - 최대 3개 기사 배열
+- `articles[].title`
+  - 기사 제목
+- `articles[].source`
+  - 기사 출처명
+- `articles[].publishedAt`
+  - 기사 발행 시각
+- `articles[].url`
+  - 기사 원문 링크
+
+권장 응답 형태:
+
+```json
+{
+  "success": true,
+  "data": {
+    "topic": "ai",
+    "locale": "kr",
+    "source": "cache",
+    "cacheKey": "news:ai:kr",
+    "ttlSecondsRemaining": 11,
+    "upstreamFetchedAt": "2026-03-17T10:00:00.000Z",
+    "articles": [
+      {
+        "title": "Example headline",
+        "source": "Example News",
+        "publishedAt": "2026-03-17T09:58:00.000Z",
+        "url": "https://example.com/article"
+      }
+    ]
+  },
+  "error": null
+}
+```

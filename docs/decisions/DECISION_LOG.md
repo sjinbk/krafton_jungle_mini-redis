@@ -57,6 +57,18 @@
   - `docs/spec/PROJECT_SPEC.md`
   - `docs/architecture/SYSTEM_DESIGN.md`
 
+### D-007 외부 캐시 데모는 뉴스 헤드라인 브리프 캐시로 고정한다
+- 내용:
+  - `GET /demo/external-cache?topic={ai|gaming|economy}` 형태를 사용한다
+  - 업스트림 공급자는 The News API를 사용한다
+  - 내부 캐시 키는 `news:{topic}:kr`, TTL은 `15`초로 고정한다
+- 이유:
+  - Redis의 캐시 hit / TTL 만료 / origin 재조회 흐름을 짧고 명확하게 보여주기 쉽다
+  - 터미널 중심 시연과 테스트 자동화에 필요한 입력 공간을 작게 유지할 수 있다
+- 원본 문서:
+  - `docs/spec/API_CONTRACT.md`
+  - `docs/spec/PROJECT_SPEC.md`
+
 ## Deferred
 ### D-101 영속성 방식
 - 후보:

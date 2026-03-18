@@ -1,6 +1,7 @@
 # Decision Log
 
-이 문서는 고정된 판단의 이유만 기록한다. 현재 운영 기준 자체는 `PROJECT_SPEC`, `API_CONTRACT`, `SYSTEM_DESIGN`, `TEAM_CONVENTIONS`를 원본으로 본다.
+이 문서는 고정된 판단의 이유만 기록한다.  
+현재 운영 기준 자체는 `PROJECT_SPEC`, `API_CONTRACT`, `SYSTEM_DESIGN`, `TEAM_CONVENTIONS`를 원본으로 본다.
 
 ## Accepted
 ### D-001 기본 아키텍처는 3계층으로 분리한다
@@ -41,7 +42,7 @@
 
 ### D-005 SET 덮어쓰기에서 TTL이 없으면 기존 만료는 제거한다
 - 내용:
-  - 같은 키에 새 값을 TTL 없이 저장하면 expiration metadata를 초기화한다
+  - 같은 key에 새 값을 TTL 없이 저장하면 expiration metadata를 초기화한다
 - 이유:
   - 구현 판단이 갈릴 수 있는 지점을 미리 잠가 일관성을 유지한다
 - 원본 문서:
@@ -85,7 +86,7 @@
   - 공개 API는 FastAPI 라우트로 제공한다
   - 기본 실행 포트는 Uvicorn 기본값 `8000`을 따른다
 - 이유:
-  - Python 3.11 기준 JSON API, validation, 테스트 경로를 단순하게 유지할 수 있다
+  - JSON API, validation, 테스트 경로를 단순하게 유지할 수 있다
   - 문서 계약과 구현 책임 경계를 빠르게 맞추기 쉽다
 - 원본 문서:
   - `docs/spec/PROJECT_SPEC.md`
@@ -122,7 +123,7 @@
   - 후보는 `append-only log`, `snapshot`, `hybrid`다
   - v1에서는 persistence를 필수 구현에 넣지 않고 검토 결과만 남긴다
 - 이유:
-  - 하루 과제 범위에서는 핵심 기능, 테스트, README 데모 완성도가 우선이다
+  - 과제 범위에서는 핵심 기능, 테스트, README 데모 완성도가 우선이다
   - 서버 다운 대응은 중요하지만 optional 항목으로 남겨도 과제 목표를 해치지 않는다
 - 원본 문서:
   - `docs/spec/PROJECT_SPEC.md`

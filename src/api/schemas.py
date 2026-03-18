@@ -18,3 +18,18 @@ class ExpireRequest(BaseModel):
 
     ttlSeconds: StrictInt
 
+
+class PerformanceCompareRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    key: StrictStr = Field(default="sample", min_length=1)
+    iterations: StrictInt = Field(default=20)
+
+
+class ConcurrencyBurstRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scenario: StrictStr
+    count: StrictInt = Field(default=10)
+    key: StrictStr = Field(default="sample", min_length=1)
+

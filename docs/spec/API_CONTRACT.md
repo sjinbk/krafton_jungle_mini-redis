@@ -11,6 +11,8 @@
 | `POST` | `/kv/{key}/expire` | TTL 설정 | path `key`, body `ttlSeconds` | `200`, `400`, `404` |
 | `GET` | `/kv/{key}/ttl` | TTL 조회 | path `key` | `200`, `404` |
 | `GET` | `/demo/data-cache` | DB 기반 더미 데이터 캐싱 시나리오 | query `key` | `200`, `400`, `500` |
+| `POST` | `/demo/performance/cache-compare` | cold origin vs warm cache 성능 비교 | optional body `key`, `iterations` | `200`, `400`, `404`, `500` |
+| `POST` | `/demo/performance/concurrency-burst` | 동시 GET burst 성능 비교 | body `scenario`, optional `count`, `key` | `200`, `400`, `404`, `500` |
 
 ## 구현 우선순위
 - 필수 구현
@@ -21,6 +23,8 @@
   - `GET /kv/{key}/ttl`
 - 함께 검증할 데모 API
   - `GET /demo/data-cache`
+  - `POST /demo/performance/cache-compare`
+  - `POST /demo/performance/concurrency-burst`
 
 ## 명령 의미
 ### `SET`
@@ -116,7 +120,11 @@
 ## 에러 코드
 - `INVALID_KEY`
 - `INVALID_TTL`
+- `INVALID_ITERATIONS`
+- `INVALID_BURST_COUNT`
+- `INVALID_SCENARIO`
 - `KEY_NOT_FOUND`
+- `BENCHMARK_DATA_NOT_FOUND`
 - `INTERNAL_ERROR`
 
 ## DB 더미 데이터 캐싱 시나리오
@@ -186,6 +194,116 @@ MongoDB 문서 스키마:
         "value": "example payload"
       }
     ]
+  },
+  "error": null
+}
+```
+
+## 성능 비교 API
+### `POST /demo/performance/cache-compare`
+- 목적:
+  - 동일한 입력에 대해 MongoDB origin 경로와 warm cache 경로의 응답시간을 비교한다.
+- 요청:
+  - body optional
+  - `key`: 기본값 `sample`
+  - `iterations`: 기본값 `20`, 범위 `1..100`
+- 측정 기준:
+  - `apiTiming`: benchmark app의 `/demo/data-cache` HTTP 왕복 시간
+  - `serviceTiming`: `DemoCacheService.get_data()` 직접 호출 시간
+- 결과:
+  - cold 측정은 매 반복 전 cache key를 비운다.
+  - warm 측정은 1회 prime 후 측정한다.
+  - origin 결과가 비면 `404 BENCHMARK_DATA_NOT_FOUND`
+
+권장 응답 형태:
+
+```json
+{
+  "success": true,
+  "data": {
+    "scenario": "cacheCompare",
+    "key": "sample",
+    "iterations": 20,
+    "originType": "mongodb",
+    "measuredAt": "2026-03-18T10:00:00.000Z",
+    "apiTiming": {
+      "coldAvgMs": 3.738,
+      "warmAvgMs": 2.396,
+      "savedMs": 1.342,
+      "speedupRatio": 1.56
+    },
+    "serviceTiming": {
+      "coldAvgMs": 3.101,
+      "warmAvgMs": 1.982,
+      "savedMs": 1.119,
+      "speedupRatio": 1.564
+    }
+  },
+  "error": null
+}
+```
+
+### `POST /demo/performance/concurrency-burst`
+- 목적:
+  - n개의 GET을 동시에 보냈을 때 전역 직렬화와 대기 시간을 수치와 타임라인으로 보여준다.
+- 요청:
+  - `scenario`: 아래 enum 중 하나
+    - `sameKeyKvGetBurst`
+    - `differentKeyKvGetBurst`
+    - `demoCacheGetBurst`
+  - `count`: 기본값 `10`, 범위 `1..50`
+  - `key`: 기본값 `sample`
+- 측정 기준:
+  - `apiTiming`: benchmark app HTTP GET burst
+  - `serviceTiming`: 서비스 메서드 직접 호출 burst
+- 시나리오:
+  - `sameKeyKvGetBurst`
+    - 같은 key에 대한 `GET /kv/{key}`를 동시에 보낸다.
+  - `differentKeyKvGetBurst`
+    - 서로 다른 key에 대한 `GET /kv/{key}`를 동시에 보낸다.
+  - `demoCacheGetBurst`
+    - 1회 prime 후 `GET /demo/data-cache?key={key}`를 동시에 보내고 `source=cache`를 기대한다.
+
+권장 응답 형태:
+
+```json
+{
+  "success": true,
+  "data": {
+    "scenario": "sameKeyKvGetBurst",
+    "count": 10,
+    "measuredAt": "2026-03-18T10:00:00.000Z",
+    "apiTiming": {
+      "totalElapsedMs": 14.201,
+      "avgMs": 5.211,
+      "p95Ms": 7.901,
+      "maxMs": 7.901,
+      "throughputRps": 704.176,
+      "successCount": 10,
+      "errorCount": 0,
+      "timeline": [
+        {
+          "requestId": "request-1",
+          "key": "sample",
+          "startedOffsetMs": 0.014,
+          "endedOffsetMs": 4.812,
+          "durationMs": 4.798,
+          "status": "success",
+          "statusCode": 200,
+          "source": null
+        }
+      ]
+    },
+    "serviceTiming": {
+      "totalElapsedMs": 9.114,
+      "avgMs": 3.221,
+      "p95Ms": 4.81,
+      "maxMs": 4.81,
+      "throughputRps": 1097.957,
+      "successCount": 10,
+      "errorCount": 0,
+      "timeline": []
+    }
   },
   "error": null
 }

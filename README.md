@@ -152,6 +152,8 @@ scripts/
 | `POST` | `/kv/{key}/expire` | TTL 설정 |
 | `GET` | `/kv/{key}/ttl` | TTL 조회 |
 | `GET` | `/demo/data-cache?key=sample` | MongoDB origin -> cache-aside 데모 |
+| `POST` | `/demo/performance/cache-compare` | cold origin vs warm cache 성능 비교 |
+| `POST` | `/demo/performance/concurrency-burst` | 동시 GET burst 성능 비교 |
 
 ## 데모 예시
 ### KV 저장/조회
@@ -181,6 +183,19 @@ curl "http://127.0.0.1:8000/demo/data-cache?key=sample"
 - TTL 안의 재호출은 `source = cache`
 - TTL 만료 후 재호출은 다시 `source = origin`
 
+### 성능 비교 API
+```bash
+curl -X POST http://127.0.0.1:8000/demo/performance/cache-compare ^
+  -H "Content-Type: application/json" ^
+  -d "{\"key\":\"sample\",\"iterations\":20}"
+```
+
+```bash
+curl -X POST http://127.0.0.1:8000/demo/performance/concurrency-burst ^
+  -H "Content-Type: application/json" ^
+  -d "{\"scenario\":\"sameKeyKvGetBurst\",\"count\":10,\"key\":\"sample\"}"
+```
+
 ## 테스트 결과
 - 단위 테스트
   - store set/get/delete
@@ -201,10 +216,34 @@ curl "http://127.0.0.1:8000/demo/data-cache?key=sample"
 - 측정 조건:
   - 로컬 MongoDB `mongod`
   - `python benchmarks/compare_cache.py --key sample --iterations 20`
-  - 같은 요청 경로 `/demo/data-cache?key=sample`
+  - 또는 `POST /demo/performance/cache-compare`
+  - 격리된 benchmark store / executor / seeded MongoDB 상태
 - 측정 결과:
-  - cold origin average: `3.738 ms`
-  - warm cache average: `2.396 ms`
+  - `apiTiming.coldAvgMs`
+  - `apiTiming.warmAvgMs`
+  - `apiTiming.savedMs`
+  - `apiTiming.speedupRatio`
+  - `serviceTiming.coldAvgMs`
+  - `serviceTiming.warmAvgMs`
+  - `serviceTiming.savedMs`
+  - `serviceTiming.speedupRatio`
+
+## 동시성 성능 시연
+- 목적:
+  - n개의 GET을 동시에 보냈을 때 전역 직렬화에 따른 대기와 처리 순서를 수치로 보여준다.
+- 지원 시나리오:
+  - `sameKeyKvGetBurst`
+  - `differentKeyKvGetBurst`
+  - `demoCacheGetBurst`
+- 핵심 출력:
+  - `totalElapsedMs`
+  - `avgMs`
+  - `p95Ms`
+  - `maxMs`
+  - `throughputRps`
+  - `successCount`
+  - `errorCount`
+  - `timeline`
 
 ## Persistence 검토 결과
 - v1에서는 persistence를 구현하지 않았다.
